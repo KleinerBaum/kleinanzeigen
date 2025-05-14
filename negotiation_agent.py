@@ -1,6 +1,6 @@
-import openai
 import json
 import time
+import openai
 
 class NegotiationAgent:
     """
@@ -98,7 +98,7 @@ class NegotiationAgent:
                     outputs = []
                     for tool_call in tool_calls:
                         func_name = tool_call.function.name
-                        args = tool_call.arguments  # arguments provided by the assistant for the function
+                        args = json.loads(tool_call.function.arguments)
                         if func_name == "extract_fields":
                             # Call the actual extraction function with provided arguments
                             text = args.get("text", "")
