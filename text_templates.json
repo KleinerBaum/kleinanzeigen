@@ -1,12 +1,212 @@
-{
-  "Erstkontakt": "Sehr geehrte/r [NAME],\n\nich bin auf Ihre Anzeige »[TITEL]« aufmerksam geworden und habe großes Interesse. Ist der Artikel noch verfügbar?",
-  "Artikelrückfrage": "Könnten Sie bitte noch einige Details zum Artikel mitteilen (Alter, Originalzubehör, eventuelle Gebrauchsspuren)?",
-  "Preisverhandlung": "Wären Sie mit einem Preis von [NEUER_PREIS] € einverstanden oder gäbe es Spielraum bei Ihrer aktuellen Vorstellung von [PREIS] €?",
-  "Terminvereinbarung": "Wann würde es Ihnen für eine Besichtigung oder Abholung passen? Ich könnte am [DATUM] gegen [UHRZEIT] Uhr.",
-  "Lieferoptionen": "Bieten Sie Versand oder Lieferung an? Falls ja, wie hoch wären die Versandkosten und welche Dienstleister nutzen Sie?",
-  "Zahlungsmodalitäten": "Welche Zahlungsmethoden akzeptieren Sie (Bar, Überweisung, PayPal, Sofort-Überweisung)?",
-  "Reservierungsanfrage": "Wäre es möglich, den Artikel für [ZEITFENSTER] zu reservieren, bis wir den Termin wahrnehmen können?",
-  "Standortbestätigung": "Findet die Abholung unter der im Inserat genannten Adresse in [ORT] statt oder gibt es einen alternativen Treffpunkt?",
-  "Dokumentationswunsch": "Falls vorhanden, könnten Sie mir bitte weitere Fotos oder Unterlagen (z. B. Rechnung, Seriennummer) zusenden?",
-  "Dankeschön": "Vielen Dank vorab für Ihre Rückmeldung.\n\nMit freundlichen Grüßen\nGabi"
-}
+[
+  {
+    "group": "Begrüßung & Vorstellung",
+    "id": "intro_01",
+    "fun": 5,
+    "lang": "de",
+    "text": "Guten Tag, mein Name ist Gabi. Zusammen mit meinem Freund Torsten richte ich gerade unsere neue Wohnung ein und wir sind auf der Suche nach günstigen Möbeln."
+  },
+  {
+    "group": "Begrüßung & Vorstellung",
+    "id": "intro_02",
+    "fun": 30,
+    "lang": "de",
+    "text": "Hallo, ich bin Gabi (30) und zusammen mit meinem Freund Torsten richte ich gerade unsere erste gemeinsame Wohnung ein."
+  },
+  {
+    "group": "Begrüßung & Vorstellung",
+    "id": "intro_03",
+    "fun": 60,
+    "lang": "de",
+    "text": "Hi, wir sind Gabi und Torsten, beide 30, und dabei, unsere neue Wohnung mit kleinem Budget gemütlich einzurichten."
+  },
+  {
+    "group": "Begrüßung & Vorstellung",
+    "id": "intro_04",
+    "fun": 90,
+    "lang": "de",
+    "text": "Hallöchen! Gabi hier (Kunsthistorikerin, 30) mit Freund Torsten. Wir tingeln gerade mit einem Sprinter durch Deutschland, um coole Second-Hand-Möbel für unsere Wohnung zu ergattern."
+  },
+  {
+    "group": "Erstkontakt & Interesse",
+    "id": "initial_01",
+    "fun": 10,
+    "lang": "de",
+    "text": "Ich interessiere mich sehr für Ihr Angebot und möchte gerne wissen, ob es noch verfügbar ist."
+  },
+  {
+    "group": "Erstkontakt & Interesse",
+    "id": "initial_02",
+    "fun": 20,
+    "lang": "de",
+    "text": "Ich habe Ihre Anzeige gesehen und würde mich sehr über weitere Informationen freuen."
+  },
+  {
+    "group": "Erstkontakt & Interesse",
+    "id": "initial_03",
+    "fun": 50,
+    "lang": "de",
+    "text": "Das angebotene Stück sieht wirklich toll aus und wir wären sehr daran interessiert, es zu kaufen, falls es noch zu haben ist."
+  },
+  {
+    "group": "Erstkontakt & Interesse",
+    "id": "initial_04",
+    "fun": 80,
+    "lang": "de",
+    "text": "Als Kunsthistorikerin habe ich mich sofort in den Charme dieses Stücks verliebt – ich hoffe, es ist noch zu haben!"
+  },
+  {
+    "group": "Fragen zum Zustand",
+    "id": "condition_01",
+    "fun": 5,
+    "lang": "de",
+    "text": "Könnten Sie mir bitte etwas über den Zustand sagen? Gibt es etwaige Mängel oder Gebrauchsspuren?"
+  },
+  {
+    "group": "Fragen zum Zustand",
+    "id": "condition_02",
+    "fun": 30,
+    "lang": "de",
+    "text": "Mich würde der aktuelle Zustand interessieren – gibt es Kratzer, Flecken oder andere Gebrauchsspuren?"
+  },
+  {
+    "group": "Fragen zum Zustand",
+    "id": "condition_03",
+    "fun": 50,
+    "lang": "de",
+    "text": "Wurde das Möbelstück in einem tierfreien Nichtraucherhaushalt genutzt? Sind Kratzer oder andere Gebrauchsspuren vorhanden?"
+  },
+  {
+    "group": "Fragen zum Zustand",
+    "id": "condition_04",
+    "fun": 80,
+    "lang": "de",
+    "text": "Wie ist denn der Zustand? Gibt’s irgendwelche Kratzer oder Macken, die wir wissen sollten?"
+  },
+  {
+    "group": "Preisverhandlung",
+    "id": "price_01",
+    "fun": 5,
+    "lang": "de",
+    "text": "Wäre der Preis verhandelbar?"
+  },
+  {
+    "group": "Preisverhandlung",
+    "id": "price_02",
+    "fun": 20,
+    "lang": "de",
+    "text": "Hätten Sie eventuell ein wenig Spielraum beim Preis? Unser Budget ist leider etwas begrenzt."
+  },
+  {
+    "group": "Preisverhandlung",
+    "id": "price_03",
+    "fun": 50,
+    "lang": "de",
+    "text": "Wir müssen ein wenig auf den Geldbeutel achten – wäre beim Preis noch etwas möglich?"
+  },
+  {
+    "group": "Preisverhandlung",
+    "id": "price_04",
+    "fun": 70,
+    "lang": "de",
+    "text": "Würdest du beim Preis vielleicht noch ein bisschen was machen können? Unser Budget ist leider sehr knapp."
+  },
+  {
+    "group": "Preisverhandlung",
+    "id": "price_05",
+    "fun": 90,
+    "lang": "de",
+    "text": "Als junge Leute mit kleinem Geldbeutel wären wir dir sehr dankbar, wenn am Preis noch etwas ginge."
+  },
+  {
+    "group": "Terminvorschläge & Abholung",
+    "id": "schedule_01",
+    "fun": 10,
+    "lang": "de",
+    "text": "Wir könnten das Möbelstück nach Absprache abholen. Wann würde es Ihnen zeitlich am besten passen?"
+  },
+  {
+    "group": "Terminvorschläge & Abholung",
+    "id": "schedule_02",
+    "fun": 40,
+    "lang": "de",
+    "text": "Wir haben einen Transporter zur Verfügung und könnten flexibel abholen. Beispielsweise könnten wir kommenden Samstag vorbeikommen, falls Ihnen das passt."
+  },
+  {
+    "group": "Terminvorschläge & Abholung",
+    "id": "schedule_03",
+    "fun": 70,
+    "lang": "de",
+    "text": "Wir haben einen Sprinter und sind zeitlich flexibel – wann würde es dir am besten passen für die Abholung?"
+  },
+  {
+    "group": "Terminvorschläge & Abholung",
+    "id": "schedule_04",
+    "fun": 90,
+    "lang": "de",
+    "text": "Unser geliehener Sprinter steht schon startklar. Sag einfach, wann es dir passt, und wir kommen vorbei!"
+  },
+  {
+    "group": "Dank & Abschluss",
+    "id": "closing_01",
+    "fun": 0,
+    "lang": "de",
+    "text": "Vielen Dank für Ihre Zeit. Mit freundlichen Grüßen, Gabi"
+  },
+  {
+    "group": "Dank & Abschluss",
+    "id": "closing_02",
+    "fun": 20,
+    "lang": "de",
+    "text": "Ich würde mich sehr über eine Antwort freuen. Vielen Dank und viele Grüße, Gabi"
+  },
+  {
+    "group": "Dank & Abschluss",
+    "id": "closing_03",
+    "fun": 50,
+    "lang": "de",
+    "text": "Vielen Dank schon mal und liebe Grüße, Gabi"
+  },
+  {
+    "group": "Dank & Abschluss",
+    "id": "closing_04",
+    "fun": 80,
+    "lang": "de",
+    "text": "Danke dir fürs Lesen! Wir freuen uns auf deine Antwort. Liebe Grüße, Gabi & Torsten"
+  },
+  {
+    "group": "Optionale Extras",
+    "id": "extra_01",
+    "fun": 10,
+    "lang": "de",
+    "text": "Wäre eventuell auch ein Versand möglich? Die Kosten dafür würden wir selbstverständlich übernehmen."
+  },
+  {
+    "group": "Optionale Extras",
+    "id": "extra_02",
+    "fun": 20,
+    "lang": "de",
+    "text": "Falls Sie noch Rückfragen haben, können Sie uns gerne jederzeit kontaktieren."
+  },
+  {
+    "group": "Optionale Extras",
+    "id": "extra_03",
+    "fun": 30,
+    "lang": "de",
+    "text": "Falls eine Lieferung möglich wäre, würden wir uns sehr freuen. Andernfalls holen wir den Artikel gerne selbst ab."
+  },
+  {
+    "group": "Optionale Extras",
+    "id": "extra_04",
+    "fun": 70,
+    "lang": "de",
+    "text": "Falls du sogar liefern könntest, wäre das großartig (die Kosten würden wir natürlich übernehmen)!"
+  },
+  {
+    "group": "Optionale Extras",
+    "id": "extra_05",
+    "fun": 90,
+    "lang": "de",
+    "text": "Falls du noch andere Möbel loswerden möchtest – wir hätten bestimmt auch Interesse 😉."
+  }
+]
