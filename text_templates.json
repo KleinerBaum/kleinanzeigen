@@ -1,0 +1,12 @@
+{
+  "Erstkontakt": "Sehr geehrte/r [NAME],\n\nich bin auf Ihre Anzeige »[TITEL]« aufmerksam geworden und habe großes Interesse. Ist der Artikel noch verfügbar?",
+  "Artikelrückfrage": "Könnten Sie bitte noch einige Details zum Artikel mitteilen (Alter, Originalzubehör, eventuelle Gebrauchsspuren)?",
+  "Preisverhandlung": "Wären Sie mit einem Preis von [NEUER_PREIS] € einverstanden oder gäbe es Spielraum bei Ihrer aktuellen Vorstellung von [PREIS] €?",
+  "Terminvereinbarung": "Wann würde es Ihnen für eine Besichtigung oder Abholung passen? Ich könnte am [DATUM] gegen [UHRZEIT] Uhr.",
+  "Lieferoptionen": "Bieten Sie Versand oder Lieferung an? Falls ja, wie hoch wären die Versandkosten und welche Dienstleister nutzen Sie?",
+  "Zahlungsmodalitäten": "Welche Zahlungsmethoden akzeptieren Sie (Bar, Überweisung, PayPal, Sofort-Überweisung)?",
+  "Reservierungsanfrage": "Wäre es möglich, den Artikel für [ZEITFENSTER] zu reservieren, bis wir den Termin wahrnehmen können?",
+  "Standortbestätigung": "Findet die Abholung unter der im Inserat genannten Adresse in [ORT] statt oder gibt es einen alternativen Treffpunkt?",
+  "Dokumentationswunsch": "Falls vorhanden, könnten Sie mir bitte weitere Fotos oder Unterlagen (z. B. Rechnung, Seriennummer) zusenden?",
+  "Dankeschön": "Vielen Dank vorab für Ihre Rückmeldung.\n\nMit freundlichen Grüßen\nGabi"
+}

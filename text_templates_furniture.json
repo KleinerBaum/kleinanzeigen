@@ -1,0 +1,12 @@
+{
+  "Erstkontakt_Möbel": "Sehr geehrte/r [NAME],\n\nich habe Ihr Möbelfundstück »[TITEL]« gesehen und bin sehr interessiert. Ist das Stück noch zu haben?",
+  "Zustandsabfrage": "Könnten Sie den aktuellen Zustand etwas genauer beschreiben (Kratzer, Abnutzungen, restauriert, tierfreier Nichtraucherhaushalt)?",
+  "Maße": "Wie lauten die exakten Maße (Breite × Tiefe × Höhe)? Eine Angabe hilft mir, den Platzbedarf zu prüfen.",
+  "Material": "Aus welchem Material bzw. Holz ist das Möbelstück gefertigt und ist es lackiert, geölt oder unbehandelt?",
+  "Preisverhandlung_Möbel": "Ihre Preisvorstellung liegt bei [PREIS] €. Wären Sie bereit, auf [NEUER_PREIS] € herunterzugehen, falls wir das Möbelstück selbst abholen?",
+  "Termin_Besichtigung": "Könnten wir einen Besichtigungstermin vereinbaren? Ich hätte am [DATUM] ab [UHRZEIT] Zeit.",
+  "Transportfrage": "Können Sie bei der Demontage oder beim Tragen helfen bzw. gäbe es vor Ort einen Aufzug?",
+  "Provenienz": "Gibt es Informationen zur Herkunft, Marke oder zum Designer des Möbelstücks?",
+  "Lieferoptionen_Möbel": "Falls Selbstabholung schwierig wird: Besteht die Möglichkeit einer Anlieferung gegen Aufpreis? Falls ja, welche Kosten würden anfallen?",
+  "Dankeschön_Möbel": "Vielen Dank für Ihre Mühe und Antwort.\n\nFreundliche Grüße\nGabi"
+}
