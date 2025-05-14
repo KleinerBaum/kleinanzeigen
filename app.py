@@ -4,6 +4,10 @@ from negotiation_agent import NegotiationAgent
 import utils
 import json
 from datetime import datetime, timedelta
+import os
+
+# API-Key-Import
+openai.api_key = st.secrets.get("openai_api_key", os.getenv("OPENAI_API_KEY"))
 
 # Page configuration
 st.set_page_config(page_title="Kleinanzeigen Chatbot", page_icon="💬", layout="wide")
