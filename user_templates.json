@@ -1,1 +1,13 @@
+{
+  "de": {
+    "Lieferoptionen": "Bieten Sie eventuell auch Versand oder Lieferung an? Die Kosten würden wir übernehmen.",
+    "Nachfassen": "Ich wollte nur höflich nachfragen, ob Sie meine vorherige Nachricht erhalten haben – besteht noch Interesse?",
+    "Verpackungsfrage": "Wie ist das Möbelstück aktuell verpackt? Müssen wir beim Transport etwas Besonderes beachten?"
+  },
+  "en": {
+    "Delivery Options": "Would shipping or delivery be possible? We would of course cover any costs.",
+    "Follow-up": "Just following up to see if you had a chance to read my previous message – is the item still available?",
+    "Packaging Question": "How is the item currently packed? Is there anything special we should consider for transport?"
+  }
+}
 
