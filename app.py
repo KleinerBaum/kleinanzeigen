@@ -1,217 +1,158 @@
 import streamlit as st
+from utils import extract_info_from_url, analyze_manual_text, parse_ics_highlight, get_free_busy_times, add_calendar_events, find_hotels_near
+from negotiation_agent import generate_message
 import openai
-from negotiation_agent import NegotiationAgent
-import utils
-import json
-from datetime import datetime, timedelta
-import os
 
-# API-Key-Import
-openai.api_key = st.secrets.get("openai_api_key", os.getenv("OPENAI_API_KEY"))
+# Streamlit Seiten-Konfiguration
+st.set_page_config(page_title="Kleinanzeigen Kontakt-Assistent", layout="centered")
 
-# Page configuration
-st.set_page_config(page_title="Kleinanzeigen Chatbot", page_icon="💬", layout="wide")
+# Session State Initialisierung
+if "model_choice" not in st.session_state:
+    st.session_state.model_choice = "gpt-3.5-turbo"
+if "language" not in st.session_state:
+    st.session_state.language = "Deutsch"
+if "fun_level" not in st.session_state:
+    st.session_state.fun_level = 0
+if "calendar_credentials" not in st.session_state:
+    st.session_state.calendar_credentials = None
+if "selected_times" not in st.session_state:
+    st.session_state.selected_times = []
 
-# Load custom CSS for styling
-try:
-    with open("style.css") as css_file:
-        st.markdown(f"<style>{css_file.read()}</style>", unsafe_allow_html=True)
-except FileNotFoundError:
-    pass
+# OpenAI API-Key aus Secrets laden (muss in secrets.toml gesetzt sein)
+if "OPENAI_API_KEY" in st.secrets:
+    openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Initialize OpenAI API key from Streamlit secrets
-openai.api_key = st.secrets.get("openai_api_key", None)
-if "openai" in st.secrets:
-    # If secrets stored under [openai] section
-    openai.api_key = st.secrets["openai"].get("api_key", openai.api_key)
-if not openai.api_key:
-    st.error("OpenAI API key is not set. Please add it to the Streamlit secrets.")
-    st.stop()
+st.title("💬 Kleinanzeigen Kontakt-Assistent")
+st.markdown("Dieses Tool hilft dabei, eine Nachricht für einen Kleinanzeigen-Kontakt zu erstellen – inklusive Terminabsprachen und optionaler Hotelsuche.")
 
-# Initialize session state for agent, thread, conversation history, favorites
-if "agent" not in st.session_state:
-    st.session_state.agent = NegotiationAgent(model="gpt-4")
-    st.session_state.thread_id = st.session_state.agent.start_new_thread()
-    st.session_state.history = []   # list of assistant message strings
-    st.session_state.favorites = [] # list of favorite message strings
-    st.session_state.last_input = None  # store last listing input to detect changes
+# Auswahl des Sprachmodells (GPT-3.5 oder GPT-4)
+model = st.selectbox("KI-Modell für Textgenerierung:", ["gpt-3.5-turbo", "gpt-4"], index=0)
+st.session_state.model_choice = model
 
-st.title("📧 Gabis Kleinanzeigen Assistent")
-st.write("Dieses Tool hilft dabei, höfliche Nachrichten für Kleinanzeigen zu erstellen. Geben Sie eine Anzeigen-URL oder den Anzeigentext ein und wählen Sie aus, welche Aspekte in der Nachricht enthalten sein sollen.")
+# Auswahl der Nachrichtensprache
+language = st.radio("Sprache der Nachricht:", ["Deutsch", "English"], index=0)
+st.session_state.language = language
 
-# Input selection: URL or text
-input_mode = st.radio("Eingabeart der Anzeige:", ["URL der Anzeige", "Anzeigentext eingeben"], index=0)
-listing_text = ""
-listing_input = ""
-if input_mode == "URL der Anzeige":
-    listing_url = st.text_input("URL der Kleinanzeige", placeholder="https://www.example.com/anzeige123")
-    if listing_url:
+# Eingabemethode für die Anzeigendaten (URL oder manueller Text)
+input_method = st.radio("Anzeigendaten eingeben per:", ["URL analysieren", "Text einfügen"], index=0)
+extracted_info = {}
+if input_method == "URL analysieren":
+    url = st.text_input("Kleinanzeigen-URL:", placeholder="https://www.kleinanzeigen.de/...")
+    if st.button("Anzeige analysieren"):
         try:
-            html = utils.fetch_listing_html(listing_url)
-            data = utils.parse_listing(html)
-            # Combine extracted fields into a text block for the agent
-            title = data.get("title") or ""
-            price = data.get("price") or ""
-            location = data.get("location") or ""
-            description = data.get("description") or ""
-            listing_parts = []
-            if title:
-                listing_parts.append(f"Title: {title}")
-            if price:
-                listing_parts.append(f"Price: {price}")
-            if location:
-                listing_parts.append(f"Location: {location}")
-            if description:
-                listing_parts.append(f"Description: {description}")
-            listing_text = "\n".join(listing_parts).strip()
-            listing_input = listing_url  # for change detection
+            with st.spinner("Analysiere die Anzeige..."):
+                extracted_info = extract_info_from_url(url)
+            st.success("Anzeige erfolgreich analysiert!")
+            st.json(extracted_info)  # Zeige extrahierte Infos an
         except Exception as e:
-            st.error(f"Fehler beim Laden der URL: {e}")
-            listing_text = ""
-elif input_mode == "Anzeigentext eingeben":
-    input_area = st.text_area("Anzeigentext", placeholder="Titel, Beschreibung, Preis, Ort,...", height=200)
-    if input_area:
-        listing_text = input_area.strip()
-        listing_input = listing_text[:100]  # use first 100 chars for change detection
+            st.error(f"Fehler bei der Analyse: {e}")
+elif input_method == "Text einfügen":
+    manual_text = st.text_area("Anzeigentext hier einfügen:")
+    if manual_text and st.button("Text analysieren"):
+        extracted_info = analyze_manual_text(manual_text)
+        st.success("Text erfolgreich analysiert!")
+        st.json(extracted_info)
 
-# ICS calendar integration (optional)
-calendar_content = None
-with st.expander("📅 Google-Kalender (ICS) anzeigen/integrieren", expanded=False):
-    ics_url = st.text_input("URL zum ICS-Kalender (optional)", placeholder="https://calendar.google.com/calendar/ical/...")
-    if ics_url:
+# Wenn Anzeigendaten extrahiert wurden, nächste Schritte anzeigen
+if extracted_info:
+    # Optional: ICS-Datei mit Reiseplan hochladen zur Hervorhebung bestimmter Tage
+    ics_file = st.file_uploader("Reiseplan als ICS-Datei hochladen (optional):", type="ics")
+    highlight_dates = []
+    if ics_file is not None:
         try:
-            res = utils.requests.get(ics_url, timeout=10)
-            res.raise_for_status()
-            calendar_content = res.text
+            ics_content = ics_file.read().decode('utf-8', errors='ignore')
+            # Aus ICS die Tage ermitteln, an denen man in der Nähe des Anzeigeortes ist
+            highlight_dates = parse_ics_highlight(ics_content, extracted_info.get("location", ""))
+            if highlight_dates:
+                st.info(f"Tage, an denen Sie sich in der Nähe von **{extracted_info.get('location')}** befinden: " +
+                        ", ".join([d.strftime('%Y-%m-%d') for d in highlight_dates]))
+            else:
+                st.info("Keine besonderen Reisetage für den Anzeigenort im Kalender gefunden.")
         except Exception as e:
-            st.error(f"Konnte Kalender nicht laden: {e}")
-    ics_file = st.file_uploader("alternativ ICS-Datei hochladen", type="ics")
-    if ics_file:
-        try:
-            content_bytes = ics_file.read()
-            calendar_content = content_bytes.decode("utf-8")
-        except Exception as e:
-            st.error(f"Fehler beim Lesen der ICS-Datei: {e}")
-    if calendar_content:
-        events = utils.get_calendar_events(calendar_content, upcoming_days=14)
-        if events:
-            st.write("**Bevorstehende Termine:**")
-            for ev_start, ev_summary in events:
-                st.write(f"- {utils.format_event_time(ev_start)}: {ev_summary}")
-        else:
-            st.write("Keine Termine in den nächsten 14 Tagen.")
-
-# Selection of text template aspects
-st.markdown("**Wählen Sie aus, welche Inhalte die Nachricht enthalten soll:**")
-template_set = {}
-try:
-    # Load templates from JSON files
-    with open("text_templates_furniture.json", "r", encoding="utf-8") as f:
-        templates_furniture = json.load(f)
-    with open("text_templates.json", "r", encoding="utf-8") as f:
-        templates_general = json.load(f)
-    # Decide which template set to use based on listing content (simple heuristic)
-    if listing_text:
-        # If listing has furniture-specific keywords or dimensions, use furniture set
-        if any(word in listing_text.lower() for word in ["cm", "sofa", "tisch", "schrank", "couch", "stuhl"]):
-            template_set = templates_furniture
-        else:
-            template_set = templates_general
-    else:
-        # Default to general if no listing yet
-        template_set = templates_general
-except Exception as e:
-    # Fallback: no templates loaded
-    template_set = {}
-    st.warning("Textbausteine konnten nicht geladen werden.")
-selected_aspects = []
-if template_set:
-    options = list(template_set.keys())
-    selected_aspects = st.multiselect("Aspekte für die Nachricht:", options)
-else:
-    st.text("Keine Textbausteine verfügbar.")
-
-# Button to generate message
-generate_btn = st.button("💡 Nachricht generieren", type="primary", disabled=(not listing_text))
-
-if generate_btn and listing_text:
-    # If the listing input changed from the last time, start a new thread for a new context
-    if st.session_state.last_input and listing_input and listing_input != st.session_state.last_input:
-        st.session_state.thread_id = st.session_state.agent.start_new_thread()
-        st.session_state.history.clear()
-    st.session_state.last_input = listing_input
-    # Construct the user prompt content
-    prompt = "Bitte formulieren Sie eine höfliche Nachricht zu folgender Anzeige.\n"
-    if selected_aspects:
-        # List the selected aspects in the prompt to guide the assistant
-        prompt += "Die Nachricht soll folgende Punkte ansprechen: "
-        prompt += ", ".join(selected_aspects) + ".\n"
-    if calendar_content and any(term for term in ["Termin", "Besichtigung"] if term in " ".join(selected_aspects)):
-        # If calendar is provided and appointment scheduling is selected, include availability hint
-        free_slot = None
-        events = utils.get_calendar_events(calendar_content, upcoming_days=7)
-        # find next day at 18:00 that is free
-        for i in range(1, 8):
-            candidate = datetime.now() + timedelta(days=i)
-            candidate = candidate.replace(hour=18, minute=0, second=0, microsecond=0)
-            busy = False
-            for ev_start, ev_summary in events:
-                if abs((ev_start - candidate).total_seconds()) < 3600:
-                    busy = True
-                    break
-            if not busy:
-                free_slot = candidate
-                break
-        if free_slot:
-            prompt += f"Der Nutzer könnte am {free_slot.strftime('%A, %d.%m.%Y um %H:%M Uhr')} für einen Termin zur Verfügung stehen.\n"
-    prompt += "Anzeigendetails:\n" + listing_text
-    # Send user message to agent and run assistant
-    with st.spinner("Generiere Nachricht..."):
-        try:
-            st.session_state.agent.add_user_message(prompt)
-            assistant_response = st.session_state.agent.run_assistant()
-        except Exception as e:
-            st.error(f"Fehler bei der Nachrichtenerzeugung: {e}")
-            assistant_response = ""
-    if assistant_response:
-        # Save the new message to history (at top of list)
-        st.session_state.history.insert(0, assistant_response)
-
-# Display history of generated messages (if any)
-if st.session_state.history:
-    st.markdown("**Nachrichten-Historie:**")
-    for idx, msg in enumerate(st.session_state.history, start=1):
-        st.write(f"**Nachricht {idx}:**")
-        st.code(msg, language="", line_numbers=False)
-        token_count = utils.count_tokens(msg, model="gpt-4")
-        st.caption(f"Tokens: {token_count}")
-        # Favorite button for each message
-        if msg in st.session_state.favorites:
-            st.button("✔️ Favorit", key=f"fav_hist_{idx}_disabled", disabled=True)
-        else:
-            if st.button("⭐ Favorit speichern", key=f"fav_hist_{idx}"):
-                st.session_state.favorites.append(msg)
-                st.success("Zur Favoritenliste hinzugefügt.")
-        st.divider()
-
-# Display favorites section
-if st.session_state.favorites:
-    st.markdown("**⭐ Meine Favoriten:**")
-    for fid, fav in enumerate(st.session_state.favorites, start=1):
-        st.write(f"**Favorit {fid}:**")
-        st.code(fav, language="", line_numbers=False)
-        st.caption(f"Tokens: {utils.count_tokens(fav, model='gpt-4')}") 
-        st.divider()
-
-# Reset conversation button in sidebar
-if st.sidebar.button("🔄 Neue Konversation starten"):
-    # Start a fresh thread (preserve favorites and agent)
+            st.error(f"ICS-Datei konnte nicht verarbeitet werden: {e}")
+    # Schritt 2: Textbausteine auswählen
+    st.subheader("Schritt 2: Textbausteine auswählen")
+    # Lade Textbaustein-Vorlagen je nach Sprache
+    templates_file = "text_templates.json" if st.session_state.language == "Deutsch" else "text_templates_en.json"
     try:
-        st.session_state.agent.start_new_thread()
-    except Exception:
-        # In case agent was cleared, reinitialize it
-        st.session_state.agent = NegotiationAgent(model="gpt-4")
-        st.session_state.agent.start_new_thread()
-    st.session_state.history.clear()
-    st.session_state.last_input = None
-    st.sidebar.info("Neue Unterhaltung gestartet.")
+        import json
+        with open(templates_file, "r", encoding="utf-8") as f:
+            templates_data = json.load(f)
+    except FileNotFoundError:
+        st.error("Textbaustein-Datei nicht gefunden.")
+        templates_data = {}
+    template_options = list(templates_data.keys())
+    # Voreinstellung: beim ersten Kontakt einen Begrüßungsbaustein standardmäßig auswählen
+    default_selection = []
+    if st.session_state.language == "Deutsch":
+        if "Erstkontakt" in template_options:
+            default_selection.append("Erstkontakt")
+    else:
+        if "Initial Contact" in template_options:
+            default_selection.append("Initial Contact")
+    selected_options = st.multiselect("Textbausteine für die Nachricht:", options=template_options, default=default_selection)
+    # Wenn Terminvereinbarung ausgewählt wurde, Kalenderintegration anzeigen
+    if any(opt.lower().startswith("termin") or opt.lower().startswith("appointment") for opt in selected_options):
+        st.subheader("📅 Terminvereinbarung")
+        # Google-Kalender Login (OAuth) wenn noch nicht erfolgt
+        if st.session_state.calendar_credentials is None:
+            if st.button("Mit Google Kalender anmelden"):
+                # Starte OAuth2 Flow für Google (Client-ID/-Secret aus secrets.toml)
+                try:
+                    from google_auth_oauthlib import get_user_credentials
+                    creds = get_user_credentials(
+                        client_id=st.secrets["client_id"],
+                        client_secret=st.secrets["client_secret"],
+                        scopes=["https://www.googleapis.com/auth/calendar.events"],
+                        minimum_port=9000,
+                        maximum_port=9001
+                    )
+                    st.session_state.calendar_credentials = creds
+                    st.success("Google-Kalender erfolgreich verbunden!")
+                except Exception as e:
+                    st.error(f"Kalender-Login fehlgeschlagen: {e}")
+        # Wenn eingeloggt, verfügbare freie Zeiten abrufen und Auswahl ermöglichen
+        if st.session_state.calendar_credentials:
+            free_options = get_free_busy_times(st.session_state.calendar_credentials, highlight_dates=highlight_dates)
+            if free_options:
+                slot_str_mapping = {slot['display']: slot for slot in free_options}
+                choices = list(slot_str_mapping.keys())
+                selected_times_display = st.multiselect("Verfügbare Zeitvorschläge wählen (mehrere möglich):", choices)
+                # Speichere ausgewählte Zeiten (datetime-Objekte) in Session State
+                st.session_state.selected_times = [slot_str_mapping[s]["start"] for s in selected_times_display]
+            else:
+                st.error("Keine freien Termine in Ihrem Kalender gefunden.")
+    # Schieberegler für Humorstil
+    fun_level = st.slider("Humor-Stil der Nachricht:", min_value=0, max_value=100, value=st.session_state.fun_level, help="0 = sehr förmlich, 100 = sehr humorvoll")
+    st.session_state.fun_level = fun_level
+    # Button zur Generierung der Nachricht mit KI
+    if st.button("🤖 Nachricht generieren"):
+        if not selected_options:
+            st.warning("Bitte wählen Sie mindestens einen Textbaustein aus.")
+        else:
+            with st.spinner("Generiere Nachricht mit KI..."):
+                try:
+                    message = generate_message(extracted_info, selected_options, st.session_state.selected_times, language=st.session_state.language, fun_level=st.session_state.fun_level, model=st.session_state.model_choice)
+                except Exception as e:
+                    st.error(f"Fehler bei der Nachrichtenerzeugung: {e}")
+                    message = ""
+            if message:
+                st.subheader("Generierte Nachricht:")
+                st.text_area("", value=message, height=300)
+                # Automatisch ausgewählte Termine zum Kalender hinzufügen
+                if st.session_state.calendar_credentials and st.session_state.selected_times:
+                    try:
+                        add_calendar_events(st.session_state.calendar_credentials, st.session_state.selected_times, extracted_info)
+                        st.success("Vorgeschlagene Termine im Google Kalender eingetragen.")
+                    except Exception as e:
+                        st.error(f"Termin konnte nicht im Kalender eingetragen werden: {e}")
+    # Hotelsuche-Funktion (optional)
+    if extracted_info.get("location") and st.button("🏨 Hotels in der Nähe suchen"):
+        with st.spinner("Suche nach Hotels..."):
+            try:
+                hotels_result = find_hotels_near(extracted_info["location"], model=st.session_state.model_choice, language=st.session_state.language)
+            except Exception as e:
+                hotels_result = f"Fehler bei der Hotelsuche: {e}"
+        st.subheader(f"Hotels in der Nähe von {extracted_info.get('location')}:")
+        if hotels_result:
+            st.markdown(hotels_result)
