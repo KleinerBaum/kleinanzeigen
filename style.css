@@ -1,12 +1,64 @@
-/* Custom styles for the Streamlit Kleinanzeigen App */
-/* Hide Streamlit branding and menu */
-#MainMenu, header, footer { visibility: hidden; }
-/* Style buttons */
-.stButton button {
-    border-radius: 5px;
-    padding: 0.4em 0.8em;
+/* ===== 60s Look & Feel ===== */
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600&family=Style+Script&display=swap');
+
+/* Vollflächiger Hintergrund (Performance-freundliches Retro-Muster) */
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Quicksand', sans-serif;
+  color: #2b2b2b;
+  /* Streifen-Pattern in 60s-Palette */
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #F4C531 0 20px,
+      #F05136 20px 40px,
+      #5583D2 40px 60px,
+      #53B59C 60px 80px
+    );
 }
-/* Indicate disabled favorite button more clearly */
-.stButton button:disabled {
-    color: #888;
+
+/* Überschriften im echten Retro-Style */
+h1, h2, h3, .stApp header {
+  font-family: 'Style Script', cursive;
+  letter-spacing: 1px;
+  color: #2b2b2b;
+}
+
+/* White Card um Inhalte kontrastreich lesbar zu machen */
+.stApp > div:first-child {
+  padding: 2rem 0;
+}
+.container, .stMarkdown, .stTextArea, .stTextInput, .stMultiSelect, .stSelectbox, .stSlider {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.15);
+  padding: 1rem;
+}
+
+/* Buttons – kräftiges Korallen-Orange wie in 60s-Postern */
+.stButton>button {
+  background-color: #F05136;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.stButton>button:hover {
+  background-color: #d0402b;
+}
+
+/* Slider & Inputs: dezentes Retro-Grau */
+.stSlider > div > div,
+.stTextInput input,
+.stTextArea textarea {
+  color: #2b2b2b;
+  border-radius: 6px;
+}
+
+/* Mobile-Friendly */
+@media (max-width: 600px) {
+  h1 { font-size: 2rem; }
+  .container { padding: .75rem; }
 }
