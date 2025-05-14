@@ -36,7 +36,7 @@ if "agent" not in st.session_state:
     st.session_state.favorites = [] # list of favorite message strings
     st.session_state.last_input = None  # store last listing input to detect changes
 
-st.title("📧 Kleinanzeigen Negotiation Assistant")
+st.title("📧 Gabis Kleinanzeigen Assistent")
 st.write("Dieses Tool hilft dabei, höfliche Nachrichten für Kleinanzeigen zu erstellen. Geben Sie eine Anzeigen-URL oder den Anzeigentext ein und wählen Sie aus, welche Aspekte in der Nachricht enthalten sein sollen.")
 
 # Input selection: URL or text

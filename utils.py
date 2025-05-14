@@ -68,34 +68,45 @@ def parse_listing(html: str) -> dict:
     result["description"] = description.strip()
     return result
 
-def get_calendar_events(ics_content: str, upcoming_days: int = 14) -> list:
+def get_calendar_events(ics_content: str, upcoming_days: int = 14) -> list[tuple[datetime, str]]:
     """
-    Parse ICS calendar content and return a list of upcoming events within the next given days.
-    Each event in the list is a tuple (start_datetime, summary).
+    Gibt eine Liste kommender Events (start_datetime, summary) für die nächsten `upcoming_days` Tage zurück.
+    Zeigt nur Events an, die ein gültiges Start-Datum haben.
     """
-    events = []
+    events: list[tuple[datetime, str]] = []
     try:
         cal = Calendar.from_ical(ics_content)
-    except Exception as e:
-        return events
+    except Exception:
+        return events  # Parsing fehlgeschlagen → leer zurück
+
     now = datetime.now()
-    future_limit = now + timedelta(days=upcoming_days)
-    for component in cal.walk():
-        if component.name == "VEVENT":
-            start = component.get('dtstart').dt
-            summary = str(component.get('summary')) if component.get('summary') else ""
-            # Ensure start is a datetime (if date, convert to datetime at midnight)
-            if not isinstance(start, datetime):
-                start = datetime.combine(start, datetime.min.time())
-            # Convert to naive datetime in local time if timezone is present
-            try:
-                if start.tzinfo:
-                    start = start.astimezone(tz=None).replace(tzinfo=None)
-            except Exception:
-                pass
-            if start >= now and start <= future_limit:
-                events.append((start, summary))
-    events.sort(key=lambda x: x[0])
+    future = now + timedelta(days=upcoming_days)
+
+    for comp in cal.walk():
+        if comp.name != "VEVENT":
+            continue
+
+        dtstart_prop = comp.get("dtstart")
+        if dtstart_prop is None:        # ➜ Termin ohne Start‐Datum überspringen
+            continue
+
+        start = dtstart_prop.dt
+        if not isinstance(start, datetime):
+            # Bei reinen Datumseinträgen (type 'date') → Mitternacht setzen
+            start = datetime.combine(start, datetime.min.time())
+
+        # In lokale Zeit umwandeln & tz-Info entfernen
+        try:
+            if start.tzinfo is not None:
+                start = start.astimezone(tz=None).replace(tzinfo=None)
+        except Exception:
+            pass
+
+        if now <= start <= future:
+            summary = str(comp.get("summary", "")).strip()
+            events.append((start, summary or "(Ohne Titel)"))
+
+    events.sort(key=lambda tup: tup[0])
     return events
 
 def format_event_time(dt: datetime) -> str:
