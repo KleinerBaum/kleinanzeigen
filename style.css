@@ -1,0 +1,12 @@
+/* Custom styles for the Streamlit Kleinanzeigen App */
+/* Hide Streamlit branding and menu */
+#MainMenu, header, footer { visibility: hidden; }
+/* Style buttons */
+.stButton button {
+    border-radius: 5px;
+    padding: 0.4em 0.8em;
+}
+/* Indicate disabled favorite button more clearly */
+.stButton button:disabled {
+    color: #888;
+}

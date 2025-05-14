@@ -1,166 +1,122 @@
 import requests
 from bs4 import BeautifulSoup
-from tenacity import retry, stop_after_attempt, wait_random_exponential
-import re
-import json
-import os
-import random
-import time
+from datetime import datetime, timedelta
 from icalendar import Calendar
-from datetime import datetime
+import re
+import tiktoken
 
-class ExtractionError(Exception):
-    pass
-
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0 Safari/537.36"
-]
-
-@retry(stop=stop_after_attempt(5), wait=wait_random_exponential(min=2, max=6), reraise=True)
-def extract_info_from_url(url):
+def fetch_listing_html(url: str) -> str:
     """
-    Extrahiert Titel, Beschreibung, Preis sowie weitere Details aus einer angegebenen Kleinanzeigen-URL.
+    Fetch the HTML content of a listing page given its URL.
+    Returns the HTML text if successful, or raises an exception if failed.
     """
-    headers = {'User-Agent': random.choice(USER_AGENTS)}
-    try:
-        time.sleep(random.uniform(1, 3))  # Verzögerung, um Scraping-Schutz zu minimieren
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers, timeout=10)
+    response.raise_for_status()
+    return response.text
 
-        soup = BeautifulSoup(response.content, 'html.parser')
-        # Basisinformationen
-        title_elem = soup.find('h1')
-        title = title_elem.get_text(strip=True) if title_elem else "Nicht gefunden"
-        desc_elem = soup.find('p')
-        description = desc_elem.get_text(strip=True) if desc_elem else "Nicht gefunden"
-        price_elem = soup.find('span', class_='price')
-        price = price_elem.get_text(strip=True) if price_elem else "Nicht gefunden"
-        if price:
-            # 'VB' entfernen, falls vorhanden
-            price = price.replace('VB', '').strip()
-
-        # Weitere Details initialisieren
-        seller_name = None
-        condition = None
-        location = None
-        dimensions = None
-
-        # Gesamten Text der Seite durchsuchen
-        text = soup.get_text(separator="\n")
-        # Ort anhand PLZ (5 Ziffern) erkennen
-        loc_match = re.search(r"\d{5}\s+\w+", text)
-        if loc_match:
-            location = loc_match.group().strip()
-        # Zustand finden (falls als Attribut angegeben oder im Text erwähnt)
-        cond_dt = soup.find('dt', string=lambda s: s and 'Zustand' in s)
-        if cond_dt:
-            dd = cond_dt.find_next('dd')
-            if dd:
-                condition = dd.get_text(strip=True)
-        if not condition:
-            cond_match = re.search(r"Zustand:?\s*([^\n]+)", text)
-            if cond_match:
-                cond_val = cond_match.group(1).strip()
-                condition = cond_val.split(",")[0]
-        # Verkäufername finden (falls angegeben und nicht "Privater/Gewerblicher Anbieter")
-        seller_match = re.search(r"Anbieter:?\s*([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)*)", text)
-        if seller_match:
-            name = seller_match.group(1).strip()
-            if not (name.lower().startswith("privat") or name.lower().startswith("gewerb")):
-                seller_name = name
-        # Maße (Abmessungen) finden
-        dims_match = re.search(r"Maße:?\s*([^\n;]+)", text)
-        if dims_match:
-            dimensions = dims_match.group(1).strip()
-
-        return {
-            "seller_name": seller_name or "Unbekannter Verkäufer",
-            "title": title or "Nicht verfügbar",
-            "description": description or "Keine Beschreibung verfügbar",
-            "price": price or "Nicht gefunden",
-            "condition": condition or "Keine Angaben",
-            "dimensions": dimensions or "Keine Angaben",
-            "location": location or "Keine Adresse gefunden"
-        }
-    except requests.RequestException as e:
-        raise ExtractionError(f"Fehler beim Abrufen der URL: {e}")
-    except Exception as e:
-        raise ExtractionError(f"Fehler beim Parsen der HTML-Daten: {e}")
-
-def analyze_manual_text(text):
+def parse_listing(html: str) -> dict:
     """
-    Analysiert manuell eingefügten Text und extrahiert:
-    - Name des Verkäufers
-    - Titel/Beschreibung des Artikels
-    - Zustand des Artikels
-    - PLZ und Ort
-    - Maße des Artikels
-    - Preis
+    Parse the HTML content of a listing to extract main fields:
+    title, price, description, location.
+    Returns a dictionary with these fields (some may be None if not found).
     """
-    lines = text.splitlines()
-    extracted_info = {
-        "seller_name": None,
+    soup = BeautifulSoup(html, 'html.parser')
+    result = {
         "title": None,
-        "condition": None,
+        "price": None,
         "location": None,
-        "description": None,
-        "dimensions": None,
-        "price": None
+        "description": None
     }
+    # Attempt to find title in a header tag
+    title_tag = soup.find(['h1', 'h2'])
+    if title_tag:
+        result["title"] = title_tag.get_text(strip=True)
+    # Price might be indicated by a euro symbol or specific class
+    price_text = None
+    price_elem = soup.find(text=re.compile("€"))
+    if price_elem:
+        price_text = price_elem.strip()
+    if price_text:
+        # Remove common annotations like 'VB' (Verhandlungsbasis) for clarity
+        price_text = price_text.replace("VB", "").strip()
+        result["price"] = price_text
+    # Location: try to find by known class or pattern (e.g., postal code and city)
+    location_tag = soup.find(lambda tag: tag.name in ["span", "div", "p"] and "location" in (tag.get("class") or []))
+    if location_tag:
+        result["location"] = location_tag.get_text(strip=True)
+    else:
+        text = soup.get_text()
+        loc_match = re.search(r'\b\d{5}\s+([A-ZÄÖÜ][\w-]+\s*[A-ZÄÖÜ]?[a-zäöüß]+)', text)
+        if loc_match:
+            result["location"] = loc_match.group(0).strip()
+    # Description: find main descriptive text (in <article> or a specific container)
+    description = ""
+    desc_container = soup.find('article')
+    if not desc_container:
+        desc_container = soup.find('p', attrs={"class": "description"})
+    if desc_container:
+        description = desc_container.get_text(separator="\n", strip=True)
+    else:
+        # Fallback: get a chunk of body text minus title/location
+        body_text = soup.get_text(separator="\n")
+        if result["title"]:
+            body_text = body_text.replace(result["title"], "")
+        if result["location"]:
+            body_text = body_text.replace(result["location"], "")
+        description = "\n".join(body_text.splitlines()[:50])
+    result["description"] = description.strip()
+    return result
 
-    for line in lines:
-        line = line.strip()
-        if "verkäufer" in line.lower() and not extracted_info["seller_name"]:
-            extracted_info["seller_name"] = line.split(":")[-1].strip()
-        elif len(line) > 10 and not extracted_info["title"]:
-            extracted_info["title"] = line
-        elif "zustand" in line.lower() and not extracted_info["condition"]:
-            extracted_info["condition"] = line.split(":")[-1].strip()
-        elif re.match(r"\d{5}\s+\w+", line) and not extracted_info["location"]:
-            extracted_info["location"] = line
-        elif "maß" in line.lower() and not extracted_info["dimensions"]:
-            extracted_info["dimensions"] = line.split(":")[-1].strip() if ":" in line else line
-        elif ("€" in line or "EUR" in line) and not extracted_info["price"]:
-            price_match = re.search(r"\d+", line.replace('.', '').replace(',', ''))
-            if price_match:
-                extracted_info["price"] = price_match.group(0) + " €"
-        elif not extracted_info["description"]:
-            extracted_info["description"] = line
-
-    return {
-        "seller_name": extracted_info["seller_name"] or "Unbekannter Verkäufer",
-        "title": extracted_info["title"] or "Nicht verfügbar",
-        "condition": extracted_info["condition"] or "Keine Angaben",
-        "location": extracted_info["location"] or "Keine Adresse gefunden",
-        "description": extracted_info["description"] or "Keine Beschreibung verfügbar",
-        "dimensions": extracted_info["dimensions"] or "Keine Angaben",
-        "price": extracted_info["price"] or "Nicht gefunden"
-    }
-
-CALENDAR_URL = "https://calendar.google.com/calendar/ical/28e712b12a16d77bc2a4dc69c390c04baae21f863d545039dc13f3cb749b5933%40group.calendar.google.com/private-b93473578817edcda74cd976a71090d9/basic.ics"
-
-def fetch_calendar_events():
+def get_calendar_events(ics_content: str, upcoming_days: int = 14) -> list:
     """
-    Ruft die ICS-Kalenderdatei ab und extrahiert die Termine.
+    Parse ICS calendar content and return a list of upcoming events within the next given days.
+    Each event in the list is a tuple (start_datetime, summary).
+    """
+    events = []
+    try:
+        cal = Calendar.from_ical(ics_content)
+    except Exception as e:
+        return events
+    now = datetime.now()
+    future_limit = now + timedelta(days=upcoming_days)
+    for component in cal.walk():
+        if component.name == "VEVENT":
+            start = component.get('dtstart').dt
+            summary = str(component.get('summary')) if component.get('summary') else ""
+            # Ensure start is a datetime (if date, convert to datetime at midnight)
+            if not isinstance(start, datetime):
+                start = datetime.combine(start, datetime.min.time())
+            # Convert to naive datetime in local time if timezone is present
+            try:
+                if start.tzinfo:
+                    start = start.astimezone(tz=None).replace(tzinfo=None)
+            except Exception:
+                pass
+            if start >= now and start <= future_limit:
+                events.append((start, summary))
+    events.sort(key=lambda x: x[0])
+    return events
+
+def format_event_time(dt: datetime) -> str:
+    """
+    Format a datetime to a readable string (e.g., "Mo 15.05.2025 18:00").
+    """
+    weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+    try:
+        wday = weekdays[dt.weekday()]
+    except Exception:
+        wday = dt.strftime("%a")
+    return f"{wday} {dt.strftime('%d.%m.%Y %H:%M')}"
+
+def count_tokens(text: str, model: str = "gpt-4") -> int:
+    """
+    Count the approximate number of tokens in the given text for the specified model.
+    Uses tiktoken encoding.
     """
     try:
-        response = requests.get(CALENDAR_URL)
-        response.raise_for_status()
-        calendar = Calendar.from_ical(response.text)
-
-        events = []
-        for component in calendar.walk():
-            if component.name == "VEVENT":
-                event_summary = component.get("summary")
-                event_start = component.get("dtstart").dt
-                event_end = component.get("dtend").dt
-                events.append({
-                    "summary": str(event_summary),
-                    "start": event_start,
-                    "end": event_end
-                })
-        return sorted(events, key=lambda x: x["start"])
-    except requests.RequestException as e:
-        return [{"summary": "Fehler beim Laden des Kalenders", "start": None, "end": None}]
+        enc = tiktoken.encoding_for_model(model)
+    except Exception:
+        enc = tiktoken.get_encoding("cl100k_base")
+    tokens = enc.encode(text)
+    return len(tokens)
