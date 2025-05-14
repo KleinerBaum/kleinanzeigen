@@ -1,205 +1,101 @@
 import json
-import time
 import openai
+from datetime import datetime
 
-class NegotiationAgent:
+def generate_message(info: dict, selected_segments: list, selected_times: list = None, language: str = "Deutsch", fun_level: int = 0, model: str = "gpt-3.5-turbo") -> str:
     """
-    NegotiationAgent wraps OpenAI's Assistant API to handle message generation for classified ads.
-    It uses GPT-4 with the new Threads, Runs, and Tools (function calling) interface.
+    Generiert eine personalisierte Nachricht an den Verkäufer über die OpenAI API.
+    Berücksichtigt extrahierte Infos, ausgewählte Textbausteine, optional vorgeschlagene Termine, Sprache und Humor-Stil.
     """
-    def __init__(self, model: str = "gpt-4-0613"):
-        """
-        Initialize the agent: create an assistant with specified model and tools.
-        """
-        # Create the assistant with instructions and a custom function tool for field extraction
-        self.assistant = openai.beta.assistants.create(
-            name="Kleinanzeigen Negotiation Assistant",
-            instructions=(
-                "You are an assistant that helps the user write a message to a seller on an online classifieds platform. "
-                "Always respond in polite, formal German (use 'Sie'). The user will provide the advertisement details (title, description, price, etc.) "
-                "and specify what they want to discuss (e.g., negotiating price, scheduling a meeting, asking about condition). "
-                "Use the provided details to compose a single well-written message addressing the seller. "
-                "Include a polite greeting and cover all requested topics. Do not mention the analysis or any internal steps, just present the final message."
-            ),
-            model=model,
-            # Define the custom function tool for extracting fields from listing text
-            tools=[
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "extract_fields",
-                        "description": "Extract key fields from a furniture listing text (like title, price, condition, dimensions, location).",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "text": {
-                                    "type": "string",
-                                    "description": "The raw text of the classified ad listing (including title, price, description, etc.)."
-                                }
-                            },
-                            "required": ["text"]
-                        }
-                    }
-                }
-            ]
-        )
-        self.assistant_id = self.assistant.id
-        self.current_thread_id = None
-
-    def start_new_thread(self):
-        """
-        Create a new conversation thread for a fresh context (e.g., a new listing).
-        """
-        thread = openai.beta.threads.create()
-        self.current_thread_id = thread.id
-        return self.current_thread_id
-
-    def add_user_message(self, content: str):
-        """
-        Add a user message to the current thread. 
-        Ensure a thread is started before calling this.
-        """
-        if not self.current_thread_id:
-            raise RuntimeError("Thread not initialized. Call start_new_thread() first.")
-        openai.beta.threads.messages.create(
-            thread_id=self.current_thread_id,
-            role="user",
-            content=content
-        )
-
-    def run_assistant(self):
-        """
-        Run the assistant on the current thread. This will process the conversation 
-        (including any function calls) and return the assistant's response text.
-        """
-        if not self.current_thread_id:
-            raise RuntimeError("Thread not initialized. Cannot run assistant without a thread.")
-        # Start a new run for this thread using our assistant
-        run = openai.beta.threads.runs.create(
-            thread_id=self.current_thread_id,
-            assistant_id=self.assistant_id
-        )
-        # Poll the run until it is completed, handling function calls if required
-        while True:
-            # Refresh run status
-            run = openai.beta.threads.runs.retrieve(
-                thread_id=self.current_thread_id,
-                run_id=run.id
-            )
-            if run.status == "completed":
-                break
-            if run.status == "failed" or run.status == "cancelled":
-                raise RuntimeError(f"Assistant run {run.status}: {run.failure_reason if hasattr(run, 'failure_reason') else ''}")
-            if run.status == "requires_action":
-                # Check if we need to submit tool outputs (function call)
-                if run.required_action.type == "submit_tool_outputs":
-                    # There might be multiple tool calls required; handle each
-                    tool_calls = run.required_action.submit_tool_outputs.tool_calls
-                    outputs = []
-                    for tool_call in tool_calls:
-                        func_name = tool_call.function.name
-                        args = json.loads(tool_call.function.arguments)
-                        if func_name == "extract_fields":
-                            # Call the actual extraction function with provided arguments
-                            text = args.get("text", "")
-                            result = self._tool_extract_fields(text)
-                            # Prepare tool output as a JSON string
-                            output_str = json.dumps(result, ensure_ascii=False)
-                            outputs.append({
-                                "tool_call_id": tool_call.id,
-                                "output": output_str
-                            })
+    # Lade Textbausteine entsprechend der Sprache
+    templates_file = "text_templates.json" if language.startswith("Deutsch") else "text_templates_en.json"
+    try:
+        with open(templates_file, "r", encoding="utf-8") as f:
+            templates = json.load(f)
+    except Exception:
+        templates = {}
+    segment_texts = []
+    for seg in selected_segments:
+        if seg in templates:
+            snippet = templates[seg]
+            # Falls das Template als Objekt mit 'text' hinterlegt ist, extrahiere den Text
+            if isinstance(snippet, dict) and "text" in snippet:
+                text = snippet["text"]
+            else:
+                text = snippet if isinstance(snippet, str) else ""
+            # Falls Terminvereinbarung und Zeiten vorhanden, füge Zeitvorschläge ein
+            if seg.lower().startswith("termin") or seg.lower().startswith("appointment") or seg.lower().startswith("besichtigung"):
+                if selected_times:
+                    times_formatted = []
+                    for t in selected_times[:3]:  # max. 3 Zeitvorschläge
+                        if isinstance(t, datetime):
+                            if language.startswith("Deutsch"):
+                                times_formatted.append(t.strftime("%d.%m.%Y um %H:%M Uhr"))
+                            else:
+                                times_formatted.append(t.strftime("%B %d, %Y at %I:%M %p").lstrip("0").replace(" 0", " "))
                         else:
-                            # If an unknown tool was requested (not expected here)
-                            outputs.append({
-                                "tool_call_id": tool_call.id,
-                                "output": f'{{"error": "Tool {func_name} not implemented"}}'
-                            })
-                    # Submit all tool outputs back to the assistant and continue the run
-                    run = openai.beta.threads.runs.submit_tool_outputs(
-                        thread_id=self.current_thread_id,
-                        run_id=run.id,
-                        tool_outputs=outputs
-                    )
-                    # Continue polling in the next loop iteration
-                    continue
-                else:
-                    # If there are other required actions (e.g., file upload), handle if needed
-                    raise RuntimeError(f"Unhandled required action: {run.required_action.type}")
-            # If still in progress, wait briefly and loop
-            time.sleep(0.2)
-        # Once run is completed, retrieve the messages and find the assistant's latest response
-        messages = openai.beta.threads.messages.list(thread_id=self.current_thread_id)
-        assistant_message = ""
-        for msg in messages.data:
-            if msg.role == "assistant":
-                # Concatenate all text parts of the assistant's message content
-                for content_part in msg.content:
-                    if hasattr(content_part, "text") and content_part.text is not None:
-                        assistant_message += content_part.text.value
-                # Break at the first assistant message (messages list is likely reverse-chronological)
-                break
-        return assistant_message
-
-    def _tool_extract_fields(self, text: str) -> dict:
-        """
-        Internal function that extracts fields from the listing text.
-        This is the implementation of the 'extract_fields' tool that the assistant can call.
-        Returns a dictionary of extracted fields: title, price, condition, dimensions, location.
-        """
-        fields = {
-            "title": None,
-            "price": None,
-            "condition": None,
-            "dimensions": None,
-            "location": None,
-            "description": None
-        }
-        if not text:
-            return fields
-        # Look for known field labels first (if text is structured with labels)
-        lines = text.splitlines()
-        for line in lines:
-            lower = line.strip().lower()
-            if lower.startswith("title:") or lower.startswith("titel:"):
-                fields["title"] = line.split(":", 1)[1].strip()
-            elif lower.startswith("price:") or lower.startswith("preis:"):
-                fields["price"] = line.split(":", 1)[1].strip()
-            elif lower.startswith("condition:") or lower.startswith("zustand:"):
-                fields["condition"] = line.split(":", 1)[1].strip()
-            elif lower.startswith("dimensions:") or lower.startswith("maße:") or lower.startswith("größe:"):
-                fields["dimensions"] = line.split(":", 1)[1].strip()
-            elif lower.startswith("location:") or lower.startswith("ort:"):
-                fields["location"] = line.split(":", 1)[1].strip()
-        # If some fields are still None, try to find patterns in the whole text
-        full_lower = text.lower()
-        if fields["price"] is None:
-            # Find price as a number followed by euro symbol
-            import re
-            price_match = re.search(r'(\d[\d\.\, ]*)(?=\s*€)', text)
-            if price_match:
-                fields["price"] = price_match.group(1).strip()
-        if fields["condition"] is None:
-            # Look for common condition keywords in text
-            for cond in ["neu", "neuwertig", "gebraucht", "gutem zustand", "top zustand", "einwandfrei"]:
-                if cond in full_lower:
-                    fields["condition"] = cond
-                    break
-        if fields["dimensions"] is None:
-            # Look for pattern like '100x50x30 cm' in text
-            import re
-            dim_match = re.search(r'(\d+\s*x\s*\d+(\s*x\s*\d+)?\s*cm)', full_lower)
-            if dim_match:
-                fields["dimensions"] = dim_match.group(1)
-        if fields["location"] is None:
-            # Location might be difficult to parse generically; skip if not labeled
-            pass
-        # If title still None, assume first non-empty line is title
-        if fields["title"] is None and lines:
-            for line in lines:
-                if line.strip():
-                    fields["title"] = line.strip()
-                    break
-        # Treat the entire text as description (fallback)
-        fields["description"] = text.strip()
-        return fields
+                            if language.startswith("Deutsch"):
+                                times_formatted.append(t.strftime("%d.%m.%Y"))
+                            else:
+                                times_formatted.append(t.strftime("%B %d, %Y"))
+                    if len(times_formatted) == 1:
+                        time_sentence = times_formatted[0]
+                    elif len(times_formatted) == 2:
+                        time_sentence = f"{times_formatted[0]} oder {times_formatted[1]}" if language.startswith("Deutsch") else f"{times_formatted[0]} or {times_formatted[1]}"
+                    else:
+                        time_sentence = (f"{', '.join(times_formatted[:-1])} oder {times_formatted[-1]}" 
+                                         if language.startswith("Deutsch") else 
+                                         f"{', '.join(times_formatted[:-1])}, or {times_formatted[-1]}")
+                    if language.startswith("Deutsch"):
+                        text = f"Ich könnte am {time_sentence} vorbeikommen."
+                    else:
+                        text = f"I could meet on {time_sentence}."
+            segment_texts.append(text.strip())
+    # Begrüßung/Einleitung basierend auf extrahierten Infos
+    seller = info.get("seller_name") or ""
+    item = info.get("title") or ""
+    if language.startswith("Deutsch"):
+        greeting = f"Sehr geehrte/r {seller}," if seller and seller != "Unbekannter Verkäufer" else "Guten Tag,"
+        intro = f"{greeting}\n\nich habe Ihre Anzeige zu '{item}' gesehen und bin interessiert."
+    else:
+        greeting = f"Dear {seller}," if seller and seller.lower() not in ["unknown seller", "unbekannter verkäufer"] else "Hello,"
+        intro = f"{greeting}\n\nI saw your listing for '{item}' and I am interested."
+    body = "\n".join(segment_texts)
+    message_content = intro + "\n\n" + body
+    # Abschließende Grußformel
+    closing = "\n\nMit freundlichen Grüßen" if language.startswith("Deutsch") else "\n\nSincerely"
+    message_content += closing
+    # Prompt für das Sprachmodell erstellen (System- und Nutzerrolle)
+    if language.startswith("Deutsch"):
+        if fun_level >= 80:
+            tone_instruction = " Verwende einen sehr humorvollen und lockeren Ton."
+        elif fun_level <= 20:
+            tone_instruction = " Schreibe die Nachricht in einem sehr höflichen und formellen Ton."
+        else:
+            tone_instruction = " Schreibe die Nachricht höflich und in einem freundlich-lockeren Ton."
+        system_prompt = "Du bist ein Assistent, der dabei hilft, Nachrichten für Kleinanzeigen-Kontakte zu formulieren."
+        user_prompt = f"Formuliere die folgende Nachricht an den Verkäufer in einen fließenden, natürlich klingenden Text um, der gut strukturiert ist.{tone_instruction}\nNachricht:\n\"\"\"\n{message_content}\n\"\"\""
+    else:
+        if fun_level >= 80:
+            tone_instruction = " Use a very humorous and casual tone."
+        elif fun_level <= 20:
+            tone_instruction = " Write the message in a very polite and formal tone."
+        else:
+            tone_instruction = " Write the message politely with a friendly, informal tone."
+        system_prompt = "You are an assistant that helps users write messages for online marketplace contacts."
+        user_prompt = f"Please rewrite the following message to the seller as a coherent, natural-sounding text with proper structure.{tone_instruction}\nMessage:\n\"\"\"\n{message_content}\n\"\"\""
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        final_message = response["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        # Falls die API fehlschlägt, den zusammengesetzten Text ohne Überarbeitung zurückgeben
+        final_message = message_content
+    return final_message
