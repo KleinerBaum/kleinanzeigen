@@ -1,0 +1,7 @@
+streamlit==1.30.0
+beautifulsoup4==4.12.3
+openai==1.78.0
+pyperclip==1.8.2
+requests==2.31.0
+tenacity==8.5.0
+icalendar==5.0.12
