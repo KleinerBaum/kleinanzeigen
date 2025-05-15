@@ -1,9 +1,9 @@
 import streamlit as st
 from config import OPENAI_API_KEY, OPENAI_MODEL, OLLAMA_MODEL, TIMEZONE
 from logic import calendar as calendar_logic
-import parser  # module for parsing the advertisement
-import llm_client  # module for LLM interactions (OpenAI API or Ollama)
-import negotiation  # negotiation module (no rule-based text generation, handled by LLM)
+from logic import parser  # module for parsing the advertisement
+from logic import llm_client  # module for LLM interactions (OpenAI API or Ollama)
+from logic import negotiation  # negotiation module (no rule-based text generation, handled by LLM)
 
 # Set Streamlit page configuration
 st.set_page_config(page_title="LLM Kleinanzeigen Assistent", page_icon="💬", layout="centered")
