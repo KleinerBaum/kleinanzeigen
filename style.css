@@ -1,64 +1,101 @@
-/* ===== 60s Look & Feel ===== */
-@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600&family=Style+Script&display=swap');
-
-/* Vollflächiger Hintergrund (Performance-freundliches Retro-Muster) */
-html, body {
-  height: 100%;
-  margin: 0;
-  font-family: 'Quicksand', sans-serif;
-  color: #2b2b2b;
-  /* Streifen-Pattern in 60s-Palette */
-  background:
-    repeating-linear-gradient(
-      45deg,
-      #F4C531 0 20px,
-      #F05136 20px 40px,
-      #5583D2 40px 60px,
-      #53B59C 60px 80px
-    );
+/* Base styles for the Streamlit app */
+.stApp {
+    background-color: #f0f2f6;
+    color: #333333;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
 }
 
-/* Überschriften im echten Retro-Style */
-h1, h2, h3, .stApp header {
-  font-family: 'Style Script', cursive;
-  letter-spacing: 1px;
-  color: #2b2b2b;
+/* Center the main content and set max width for better readability */
+section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {
+    max-width: 1000px;
+    padding: 1.5rem 2rem 2rem 2rem;
+    margin: auto;
 }
 
-/* White Card um Inhalte kontrastreich lesbar zu machen */
-.stApp > div:first-child {
-  padding: 2rem 0;
-}
-.container, .stMarkdown, .stTextArea, .stTextInput, .stMultiSelect, .stSelectbox, .stSlider {
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 12px;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.15);
-  padding: 1rem;
+/* Reduce spacing between elements (widgets) for a cleaner layout */
+.row-widget {
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem;
 }
 
-/* Buttons – kräftiges Korallen-Orange wie in 60s-Postern */
-.stButton>button {
-  background-color: #F05136;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-.stButton>button:hover {
-  background-color: #d0402b;
+/* Style text input and textarea fields */
+.stTextInput input, .stNumberInput input, .stTextArea textarea {
+    background-color: #fdfdfd;
+    color: #333333;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-size: 1rem;
 }
 
-/* Slider & Inputs: dezentes Retro-Grau */
-.stSlider > div > div,
-.stTextInput input,
-.stTextArea textarea {
-  color: #2b2b2b;
-  border-radius: 6px;
+/* Input and textarea focus state */
+.stTextInput input:focus, .stNumberInput input:focus, .stTextArea textarea:focus {
+    outline: none;
+    border-color: #3778c2;
+    box-shadow: 0 0 0 3px rgba(55, 120, 194, 0.3);
 }
 
-/* Mobile-Friendly */
-@media (max-width: 600px) {
-  h1 { font-size: 2rem; }
-  .container { padding: .75rem; }
+/* Style Streamlit buttons */
+.stButton button {
+    background-color: #3778c2;
+    color: #ffffff;
+    border-radius: 4px;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Button hover, active, focus, and disabled states */
+.stButton button:hover {
+    background-color: #285a8e;
+}
+.stButton button:active {
+    background-color: #1f4775;
+}
+.stButton button:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(55, 120, 194, 0.5);
+}
+.stButton button:disabled {
+    background-color: #999999;
+    cursor: not-allowed;
+}
+
+/* Slightly bolden labels for various input widgets */
+.stSelectbox label, .stMultiSelect label, .stSlider label, .stRadio label, .stCheckbox label, .stFileUploader label {
+    font-weight: 600;
+}
+
+/* Scrollbar styling for better UX */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #bbbbbb #e6e6e6;
+}
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #e6e6e6;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+    background-color: #bbbbbb;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-color: #999999;
+}
+
+/* Hyperlink styling */
+a {
+    color: #3778c2;
+    text-decoration: none;
+}
+a:hover {
+    color: #285a8e;
+    text-decoration: underline;
 }
