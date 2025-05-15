@@ -5,7 +5,7 @@ from typing import List, Dict
 
 from data.models import AdInfo
 from logic.llm_client import LLMClient
-from logic.calendar import load_events_from_ics, find_free_slots
+from logic.calendar import load_calendar, get_available_appointments
 
 # ------------------------------------------------------------
 # Kalender: nächsten freien Slot ermitteln (optional)
