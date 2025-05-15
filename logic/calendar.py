@@ -6,7 +6,7 @@ import requests
 @st.cache_data
 def load_calendar():
     """Lädt den ICS-Kalender-Feed (aus st.secrets) und gibt die Event-Komponenten zurück."""
-    ics_url = st.secrets.get("calendar_ics_url")
+    ics_url = st.secrets.get("data/Kalender.ics")
     if not ics_url:
         return []
     try:
