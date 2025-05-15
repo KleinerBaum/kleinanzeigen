@@ -1,94 +1,59 @@
-# logic/calendar.py
-# -----------------------------------------------------------
-#  Kalenderfunktionen – lesen lokale ICS-Datei und freie Slots
-# -----------------------------------------------------------
-from datetime import datetime, timedelta, time
-from icalendar import Calendar
-from pathlib import Path
 import os
+from datetime import datetime
+from icalendar import Calendar
 
-def load_calendar(file_path: str = "data/Kalender.ics") -> str:
+ics_path = 
+def load_events(ics_path: str):
     """
-    Load the calendar ICS file and return its content as text.
-    Currently, no parsing is done; the raw content is returned.
+    Lädt eine ICS-Datei und gibt eine Liste formatierter Zeitfenster (Strings) zurück.
+    Nur zukünftige Termine werden berücksichtigt. Wirft eine Exception bei Fehlern.
     """
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Calendar file not found at {file_path}")
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
-    return content
-
-
-# Standard-Pfad:  data/Kalender.ics   (gross-/Kleinschreibung egal)
-DEFAULT_ICS_PATH = Path("data/Kalender.ics")
-
-# -----------------------------------------------------------------
-def load_events_from_ics(ics_path: Path | str = DEFAULT_ICS_PATH):
-    """
-    Lädt alle VEVENT-Einträge aus einer lokalen ICS-Datei und gibt sie
-    als Liste zurück.  Jedes Listenelement ist das VEVENT-Objekt selbst.
-    """
-    ics_path = Path(ics_path)
-    if not ics_path.exists():
-        # Keine Datei → leere Liste zurückgeben
-        return []
-
-    with ics_path.open("rb") as f:
-        cal = Calendar.from_ical(f.read())
-
-    events = [comp for comp in cal.walk() if comp.name == "VEVENT"]
-    return events
-
-# -----------------------------------------------------------------
-def find_free_slots(events, max_slots: int = 2, slot_duration_minutes: int = 60):
-    """
-    Ermittelt bis zu `max_slots` freie Zeitfenster in den nächsten 7 Tagen,
-    die mindestens `slot_duration_minutes` dauern.  Rückgabe: Liste
-    von datetime-Startwerten.
-    """
-    free_slots = []
-    if not events:
-        return free_slots
-
+    # Existenz der Datei prüfen
+    if not os.path.exists(ics_path):
+        raise FileNotFoundError(f"ICS file not found at {ics_path}")
+    # Datei einlesen
+    with open(ics_path, "rb") as f:
+        ics_data = f.read()
+    try:
+        cal = Calendar.from_ical(ics_data)
+    except Exception as e:
+        # Fehler beim Parsen der ICS-Datei
+        raise RuntimeError(f"Konnte Kalender nicht einlesen: {e}")
+    events = []
     now = datetime.now()
-    horizon = now + timedelta(days=7)
-
-    # Busy-Liste aufbauen
-    busy = []
-    for evt in events:
-        start = evt.get("dtstart").dt
-        end   = evt.get("dtend").dt
+    # Alle Events durchlaufen
+    for component in cal.walk("VEVENT"):
+        # Startzeitpunkt des Termins auslesen
+        start = component.get('dtstart').dt
+        # Falls Start ein Datum ohne Zeit ist, überspringen (keine genaue Zeitangabe)
         if not isinstance(start, datetime):
-            start = datetime.combine(start, time.min)
-        if not isinstance(end, datetime):
-            end = datetime.combine(end, time.max)
-        busy.append((start, end))
-    busy.sort(key=lambda x: x[0])
-
-    # Suche nach Lücken
-    cursor = now
-    while cursor < horizon and len(free_slots) < max_slots:
-        # Kollisionsprüfung
-        conflict = None
-        for bstart, bend in busy:
-            if bstart <= cursor < bend:
-                conflict = bend
-                break
-        if conflict:
-            cursor = conflict  # hinter das Event springen
             continue
-
-        # Slot frei – passt er in den Arbeitstag 9-20 Uhr?
-        day_end = cursor.replace(hour=20, minute=0, second=0, microsecond=0)
-        if cursor.hour < 9:
-            cursor = cursor.replace(hour=9, minute=0, second=0, microsecond=0)
-
-        slot_end = cursor + timedelta(minutes=slot_duration_minutes)
-        if slot_end <= day_end:
-            free_slots.append(cursor)
-            cursor = slot_end + timedelta(minutes=15)  # 15-min-Puffer
+        # Zeitzone entfernen für Vergleich/Anzeige (Annahme: lokale Zeiten)
+        if getattr(start, "tzinfo", None):
+            try:
+                # In lokale Zeitzone umwandeln und TZ-Info entfernen
+                local_dt = start.astimezone(None)  # None = lokale Zeitzone
+                start_naive = local_dt.replace(tzinfo=None)
+            except Exception:
+                start_naive = start.replace(tzinfo=None)
         else:
-            # nächsten Tag 9 Uhr
-            cursor = (cursor + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-
-    return free_slots
+            start_naive = start
+        # Nur zukünftige Termine behalten
+        if start_naive < now:
+            continue
+        # Formatierung des Datums/Zeit (TT.MM.JJJJ HH:MM)
+        time_str = start_naive.strftime("%d.%m.%Y %H:%M")
+        # Optional den Termin-Titel (Summary) anhängen, falls vorhanden
+        summary = component.get('summary')
+        if summary:
+            summary_text = str(summary).strip()
+            if summary_text:
+                event_str = f"{time_str} - {summary_text}"
+            else:
+                event_str = time_str
+        else:
+            event_str = time_str
+        events.append(event_str)
+    # Chronologisch sortieren
+    events.sort()
+    return events
