@@ -43,3 +43,13 @@ def parse_ad(url: str = None, text: str = None) -> AdInfo:
 
     else:
         raise ValueError("parse_ad benötigt entweder url oder text.")
+
+def parse_search_input(query: str) -> str:
+    """
+    Placeholder parser for hotel search queries.
+    Currently returns the query unchanged. In the future, this could normalize or extract details.
+    """
+    # No special parsing at the moment
+    return query
+
+# Additional parsing functions can be added here as needed in the future.

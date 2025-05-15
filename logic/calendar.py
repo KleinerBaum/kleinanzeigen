@@ -5,6 +5,19 @@
 from datetime import datetime, timedelta, time
 from icalendar import Calendar
 from pathlib import Path
+import os
+
+def load_calendar(file_path: str = "data/Kalender.ics") -> str:
+    """
+    Load the calendar ICS file and return its content as text.
+    Currently, no parsing is done; the raw content is returned.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Calendar file not found at {file_path}")
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return content
+
 
 # Standard-Pfad:  data/Kalender.ics   (gross-/Kleinschreibung egal)
 DEFAULT_ICS_PATH = Path("data/Kalender.ics")
