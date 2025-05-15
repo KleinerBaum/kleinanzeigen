@@ -5,3 +5,4 @@ google-api-python-client==2.92.0  # Google Calendar API client
 icalendar==5.0.7           # Parsing ICS calendar files
 beautifulsoup4==4.12.2     # HTML parsing for Kleinanzeigen page
 requests==2.31.0           # HTTP requests for web fetching
+python-dotenv
