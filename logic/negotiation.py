@@ -1,3 +1,5 @@
+# logic/negotiation.py  (Kopfbereich)
+
 from datetime import datetime, timedelta, time
 from typing import List, Dict
 
