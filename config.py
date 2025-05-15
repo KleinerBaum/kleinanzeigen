@@ -1,22 +1,32 @@
 import os
+from dotenv import load_dotenv
+import streamlit as st
 
-# OpenAI API key: Set this or use an environment variable for security.
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", None)
+# Load environment variables from a .env file if available
+load_dotenv()
 
-# Default model names for OpenAI and Ollama
-OPENAI_MODEL = "gpt-3.5-turbo"     # ChatGPT model to use via OpenAI API
-OPENAI_TEMPERATURE: float = 0.7  # 0.0 = deterministisch, 1.0 = kreativ
+# Preferred way: get OpenAI API key from .env, otherwise from Streamlit secrets
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    # Fallback to Streamlit secrets if .env is not provided or doesn't contain the key
+    try:
+        OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+    except Exception:
+        OPENAI_API_KEY = None
 
-# ---------------------------------------------------------------------------
-# Ollama-Einstellungen  (nur relevant wenn USE_OLLAMA == True)
-# ---------------------------------------------------------------------------
-OLLAMA_MODEL = "llama3.2:3b"      # Local LLaMA model (via Ollama)
-OLLAMA_HOST: str = "http://127.0.0.1:11434"   # URL des lokalen Ollama-Servers
-OLLAMA_TEMPERATURE: float = 0.7               # Matching OpenAI-Temperature
+# Optionally, you can define default model names or other configuration
+# e.g. for OpenAI and local Ollama model.
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama2")
 
-# ---------------------------------------------------------------------------
-# Weitere globale Konstanten (falls später benötigt)
-# ---------------------------------------------------------------------------
-# Beispiel: maximale Tokenzahl, Standard-Kalenderpfad, etc.
-MAX_OUTPUT_TOKENS: int = 500
-ICS_PATH: str = "data/Kalender.ics"
+# Timezone for interpreting naive datetimes (e.g. in calendar events)
+TIMEZONE = os.getenv("TIMEZONE", "Europe/Berlin")
+
+# If an OpenAI API key was loaded, optionally set the openai library's key for convenience
+try:
+    import openai
+    if OPENAI_API_KEY:
+        openai.api_key = OPENAI_API_KEY
+except ImportError:
+    # openai library might not be installed if not using OpenAI
+    pass
