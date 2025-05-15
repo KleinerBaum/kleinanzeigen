@@ -1,118 +1,207 @@
-import os
 import streamlit as st
+import requests
+from bs4 import BeautifulSoup
+import re
 
-# Import configuration and logic modules
+# Eigene Module importieren
 import config
-from logic import calendar, llm_client, negotiation, parser
+from logic import calendar
 
-st.set_page_config(page_title="Kleinanzeigen Assistant", layout="wide")
+# Seiteneinstellungen
+st.set_page_config(page_title="Kleinanzeigen Nachrichten-Assistent", layout="centered")
 
-# Sidebar: Model selection
-st.sidebar.title("LLM-Auswahl")
-# Determine available options: Only show local model option if Ollama is installed
-model_options = ["OpenAI API"]
-if llm_client.ollama_available():  # check if Ollama binary is in PATH:contentReference[oaicite:0]{index=0}
-    model_options.append("Lokales LLaMA (Ollama)")
-model_choice = st.sidebar.radio("Wähle das Sprachmodell:", model_options)
+st.title("📝 Kleinanzeigen Nachrichten-Assistent")
+st.write("Geben Sie eine Kleinanzeigen-URL ein und erhalten Sie einen Nachrichtenvorschlag. Wählen Sie bei Bedarf Textbausteine und Terminvorschläge aus:")
 
-# Handle model selection fallback: if user chose local but it's not actually available
-use_openai = True
-if model_choice == "Lokales LLaMA (Ollama)":
-    if not llm_client.ollama_available():
-        st.sidebar.error("Lokales Modell nicht verfügbar – es wird OpenAI genutzt.")
-    else:
-        use_openai = False
+# Eingabefeld für Kleinanzeigen-URL
+ad_url = st.text_input("Kleinanzeigen-URL", placeholder="https://www.kleinanzeigen.de/s-anzeige/beispiel-anzeige/1234567890")
 
-# OpenAI API key handling
-openai_api_key = config.OPENAI_API_KEY or None
-# Also check Streamlit secrets (useful on Streamlit Cloud)
-if not openai_api_key:
+# Auswahl der Textbausteine (Mehrfachauswahl)
+module_options = list(config.TEXT_MODULES.values())
+selected_modules = st.multiselect("Textbausteine auswählen", module_options)
+
+# Falls "Preisvorschlag" gewählt wurde, Eingabefeld für Preis anzeigen
+proposed_price = None
+if config.TEXT_MODULES.get("price") in selected_modules:
+    proposed_price = st.number_input("Preisvorschlag (EUR)", min_value=1, value=1, step=1)
+    # Hinweis: 0 EUR wird ausgeschlossen; min_value=1 erzwingt gültigen Betrag
+
+# Kalendertermine laden und zur Auswahl anbieten
+calendar_events = []
+calendar_error = False
+try:
+    calendar_events = calendar.load_events(config.ICS_FILE)
+except FileNotFoundError:
+    st.error("Kalenderdatei wurde nicht gefunden. Termine können nicht geladen werden.")
+    calendar_error = True
+except Exception as e:
+    st.error(f"Kalender konnte nicht geladen werden: {e}")
+    calendar_error = True
+
+selected_times = []
+if calendar_events:
+    selected_times = st.multiselect("Verfügbare Termine für Vorschlag (Abholung/Besichtigung)", options=calendar_events)
+elif not calendar_error:
+    # Kalender ist leer (keine zukünftigen Termine)
+    st.info("Aktuell sind keine zukünftigen Termine im Kalender eingetragen.")
+
+# Auswahl des KI-Modells
+model_choice = st.selectbox("Modell für die Nachrichtenerstellung", ["OpenAI ChatGPT", "Lokales LLM (LLaMA/Ollama)"])
+
+# OpenAI API-Key behandeln (wenn nötig)
+openai_api_key = config.OPENAI_API_KEY or (st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else "")
+if model_choice.startswith("OpenAI") and not openai_api_key:
+    # Passwort-Feld zur Eingabe des API-Schlüssels
+    openai_api_key = st.text_input("OpenAI API-Key eingeben", type="password")
+
+# Session-State für generierte Nachricht initialisieren
+if "generated_message" not in st.session_state:
+    st.session_state["generated_message"] = ""
+
+# Hilfsfunktion: Kleinanzeigen-Seite abrufen und Inhalte parsen
+def fetch_ad_details(url: str):
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        openai_api_key = st.secrets["OPENAI_API_KEY"]
-    except Exception:
-        openai_api_key = None
-
-if use_openai:
-    if not openai_api_key:
-        # Prompt user for API key if not provided in config or secrets
-        openai_api_key_input = st.sidebar.text_input("OpenAI API Key eingeben:", type="password")
-        if openai_api_key_input:
-            # Save key to session state for reuse
-            st.session_state["OPENAI_API_KEY"] = openai_api_key_input
-            openai_api_key = openai_api_key_input
-    else:
-        # If key exists, store in session for consistency
-        st.session_state["OPENAI_API_KEY"] = openai_api_key
-
-# Main interface with tabs for different functionalities
-st.title("🤖 Kleinanzeigen Assistant")
-tabs = st.tabs(["🏨 Hotelsuche", "🤝 Verhandlung", "📅 Kalender"])
-tab_hotels, tab_negotiation, tab_calendar = tabs
-
-# Tab 1: Hotelsuche (Hotel search via LLM-based "web" search)
-with tab_hotels:
-    st.header("Hotelsuche")
-    st.write("Geben Sie einen Ort oder eine Suche ein, um Hotels zu finden:")
-    query = st.text_input("Suche nach Hotels in ...")  # user query input
-    search_btn = st.button("Hotels suchen")
-    if search_btn:
-        if query.strip() == "":
-            st.warning("Bitte geben Sie einen Ort oder Suchbegriff ein.")
-        else:
-            # Determine which provider to use for LLM (OpenAI or Ollama)
-            provider = "openai" if use_openai else "ollama"
-            # If using OpenAI, ensure we have an API key
-            if provider == "openai" and not openai_api_key:
-                st.error("OpenAI API Key fehlt. Bitte Key eingeben oder lokales Modell wählen.")
-            else:
-                # Perform the LLM-based hotel search
-                with st.spinner("Suche nach Hotels..."):
-                    try:
-                        # Use parser to preprocess query if needed (currently just returns the same query)
-                        search_query = parser.parse_search_input(query)
-                        result = llm_client.generate_response(
-                            f"Liste mir einige empfehlenswerte Hotels in {search_query} mit einer kurzen Beschreibung.", 
-                            provider=provider, 
-                            openai_api_key=openai_api_key
-                        )
-                        # Display the LLM result (which may contain a list of hotels)
-                        st.markdown(result)
-                    except Exception as e:
-                        # Handle errors (e.g., no internet, API failure) with placeholder output
-                        st.warning("Hotelsuche fehlgeschlagen – zeige Platzhalter-Ergebnisse.")
-                        placeholder_result = "- **Hotel Adler** – Beispielhotel in " + (query or "der Stadt") + "\n"
-                        placeholder_result += "- **Hotel Beispiel** – Ein weiteres empfohlenes Hotel\n"
-                        st.markdown(placeholder_result)
-
-# Tab 2: Verhandlung (Negotiation helper)
-with tab_negotiation:
-    st.header("Verhandlung")
-    st.write("Geben Sie Ihren Preisrahmen ein, um eine Verhandlungs-Nachricht zu generieren:")
-    col1, col2 = st.columns(2)
-    with col1:
-        min_price = st.number_input("Min. Preis (EUR)", min_value=0, value=0, step=1)
-    with col2:
-        max_price = st.number_input("Max. Preis (EUR)", min_value=0, value=0, step=1)
-    generate_btn = st.button("Nachricht generieren")
-    if generate_btn:
-        if min_price == 0 and max_price == 0:
-            st.info("Bitte geben Sie einen gültigen Preisrahmen an.")
-        elif min_price > max_price:
-            st.error("Der minimale Preis darf nicht höher als der maximale sein.")
-        else:
-            try:
-                message = negotiation.generate_message(int(min_price), int(max_price))
-                st.success("Generierte Verhandlungs-Nachricht:")
-                st.write(message)
-            except Exception as e:
-                st.error(f"Fehler bei der Generierung der Nachricht: {e}")
-
-# Tab 3: Kalender (Calendar display)
-with tab_calendar:
-    st.header("Kalender")
-    try:
-        calendar_content = calendar.load_calendar("data/Kalender.ics")
-        st.text(calendar_content)  # Display raw ICS content for now
-        st.caption("Kalenderdaten (ICS-Datei) – derzeit unformatiert angezeigt.")
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
     except Exception as e:
-        st.error(f"Kalender konnte nicht geladen werden: {e}")
+        raise RuntimeError(f"Fehler beim Abrufen der URL: {e}")
+    html = resp.text
+    # Prüfen, ob die Seite evtl. JavaScript erfordert (Noscript-Hinweis)
+    if "JavaScript aktivieren" in html or "Browser aktualisieren" in html:
+        raise RuntimeError("Die Seite konnte nicht geladen werden (evtl. ist eine Anmeldung oder aktiviertes JavaScript erforderlich).")
+    soup = BeautifulSoup(html, "html.parser")
+    title = desc = price = ""
+
+    # Titel aus Meta-Tag oder Überschrift extrahieren
+    meta_title = soup.find("meta", property="og:title")
+    if meta_title and meta_title.get("content"):
+        title = meta_title["content"]
+        # Eventuelle Zusätze (z.B. " - Kleinanzeigen") entfernen
+        title = title.split("|")[0].split(" - ")[0].strip()
+    if not title:
+        h1 = soup.find("h1")
+        if h1:
+            title = h1.get_text().strip()
+
+    # Preis aus der Anzeige extrahieren
+    price_tag = soup.find(attrs={"class": re.compile(r"price|Price|preis|PREIS")})
+    if price_tag:
+        price = price_tag.get_text().strip()
+    else:
+        # Fallback: nach Euro-Zeichen im Text suchen
+        price_text = soup.find(text=lambda t: t and "€" in t)
+        if price_text:
+            price = price_text.strip()
+
+    # Beschreibungstext extrahieren
+    desc_tag = soup.find("p", attrs={"class": re.compile(r"description|Description|beschreibung|Beschreibung")})
+    if not desc_tag:
+        desc_tag = soup.find(attrs={"id": re.compile(r"escription")})
+    if desc_tag:
+        desc = desc_tag.get_text().strip()
+    else:
+        meta_desc = soup.find("meta", {"name": "description"})
+        if meta_desc and meta_desc.get("content"):
+            desc = meta_desc["content"].strip()
+
+    # Wenn weder Titel noch Beschreibung gefunden wurden, Fehler werfen
+    if title == "" and desc == "":
+        raise RuntimeError("Angebotsdetails konnten nicht ausgelesen werden.")
+    return title, desc, price
+
+# Button zum Generieren der Nachricht
+if st.button("💬 Nachricht generieren"):
+    # Grundlegende Eingabevalidierungen
+    if not ad_url:
+        st.error("Bitte geben Sie zunächst eine Kleinanzeigen-URL ein.")
+    elif model_choice.startswith("OpenAI") and not openai_api_key:
+        st.error("Bitte tragen Sie Ihren OpenAI API-Key ein, um ChatGPT nutzen zu können.")
+    elif config.TEXT_MODULES.get("price") in selected_modules and proposed_price is not None and proposed_price <= 0:
+        st.error("Bitte geben Sie einen gültigen Preisvorschlag (> 0) ein.")
+    else:
+        # 1. Kleinanzeigen-Details parsen
+        try:
+            title, description, price_info = fetch_ad_details(ad_url)
+        except Exception as e:
+            st.error(f"Konnte die Angebotsdaten nicht verarbeiten: {e}")
+        else:
+            # 2. Prompt für LLM zusammenstellen
+            system_role = ("Du bist ein hilfreicher Assistent, der dem Nutzer hilft, " 
+                           "eine freundliche, höfliche Nachricht auf Deutsch zu verfassen.")
+            user_content = f"**Angebotstitel:** {title}\n"
+            if description:
+                user_content += f"**Angebotsbeschreibung:** {description}\n"
+            if price_info:
+                user_content += f"**Angebotspreis:** {price_info}\n"
+            user_content += "\nDer Nutzer möchte dem Verkäufer eine Nachricht schicken, die Folgendes beinhaltet:\n"
+            if config.TEXT_MODULES.get("interest") in selected_modules:
+                user_content += "- Interesse am Artikel bekunden.\n"
+            if config.TEXT_MODULES.get("condition") in selected_modules:
+                user_content += "- Eine Frage zum Zustand des Artikels stellen.\n"
+            if config.TEXT_MODULES.get("price") in selected_modules and proposed_price:
+                user_content += f"- Einen Preis von {int(proposed_price)}€ vorschlagen (als Gegenangebot).\n"
+            if selected_times:
+                times_list = "; ".join(selected_times)
+                user_content += f"- Terminvorschlag für Abholung/Besichtigung: {times_list}.\n"
+            user_content += "\nFormuliere daraus eine höfliche Nachricht in meinem Namen. Antworte **nur** mit dem ausformulierten Nachrichtentext (ohne zusätzliche Erklärungen)."
+
+            # Nachrichten im Chat-Format vorbereiten
+            messages = [
+                {"role": "system", "content": system_role},
+                {"role": "user", "content": user_content}
+            ]
+
+            result_text = None
+            # 3. LLM-Modell aufrufen (OpenAI oder lokal)
+            if model_choice.startswith("OpenAI"):
+                try:
+                    import openai
+                    openai.api_key = openai_api_key
+                    openai.api_base = "https://api.openai.com/v1"
+                    with st.spinner("Frage ChatGPT..."):
+                        response = openai.ChatCompletion.create(model=config.OPENAI_MODEL, messages=messages)
+                    # Antwort extrahieren
+                    result_text = response.choices[0].message.content.strip()
+                except Exception as e:
+                    st.error(f"Fehler bei der OpenAI-Anfrage: {e}")
+            else:
+                # Lokales LLM über Ollama
+                try:
+                    import requests
+                    payload = {"model": config.LOCAL_MODEL, "messages": messages}
+                    with st.spinner("Frage lokales LLM..."):
+                        resp = requests.post(f"{config.OLLAMA_API_URL}/chat/completions", json=payload, timeout=60)
+                    if resp.status_code != 200:
+                        raise RuntimeError(f"Ollama API-Fehler (Status {resp.status_code})")
+                    data = resp.json()
+                    # Ergebnis-Text extrahieren
+                    result_text = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                    if result_text == "":
+                        raise RuntimeError("Lokales Modell lieferte keine Antwort.")
+                except Exception as e:
+                    # Fallback auf OpenAI
+                    st.warning(f"Lokales Modell nicht verfügbar: {e} – Wechsle zu OpenAI.")
+                    if not openai_api_key:
+                        st.error("OpenAI API-Key erforderlich, um stattdessen ChatGPT zu nutzen.")
+                        result_text = None
+                    else:
+                        try:
+                            import openai
+                            openai.api_key = openai_api_key
+                            openai.api_base = "https://api.openai.com/v1"
+                            with st.spinner("Frage ChatGPT statt dessen..."):
+                                response = openai.ChatCompletion.create(model=config.OPENAI_MODEL, messages=messages)
+                            result_text = response.choices[0].message.content.strip()
+                        except Exception as e2:
+                            st.error(f"Fehler bei der OpenAI-Anfrage: {e2}")
+                            result_text = None
+
+            # 4. Ergebnis anzeigen, falls erfolgreich
+            if result_text:
+                st.session_state["generated_message"] = result_text
+
+# Generierte Nachricht (falls vorhanden) anzeigen
+if st.session_state.get("generated_message"):
+    st.subheader("Vorgeschlagene Nachricht:")
+    st.markdown(st.session_state["generated_message"])
