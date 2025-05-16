@@ -1,101 +1,76 @@
-/* Base styles for the Streamlit app */
-.stApp {
+/* Style-Anpassungen für den Streamlit-App (optional einzubinden) */
+
+html, body, [class*="css"]  {
     background-color: #f0f2f6;
+}
+
+/* Titel zentrieren und anpassen */
+h1 {
+    text-align: center;
     color: #333333;
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 16px;
+    margin-top: 0.5em;
 }
 
-/* Center the main content and set max width for better readability */
-section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {
-    max-width: 1000px;
-    padding: 1.5rem 2rem 2rem 2rem;
-    margin: auto;
-}
-
-/* Reduce spacing between elements (widgets) for a cleaner layout */
-.row-widget {
-    margin-top: 0.75rem;
-    margin-bottom: 0.75rem;
-}
-
-/* Style text input and textarea fields */
-.stTextInput input, .stNumberInput input, .stTextArea textarea {
-    background-color: #fdfdfd;
-    color: #333333;
-    border: 1px solid #cccccc;
-    border-radius: 4px;
-    padding: 0.5rem;
+/* Beschreibungstext unter dem Titel */
+.css-10trblm p {
     font-size: 1rem;
+    color: #444444;
+    text-align: center;
 }
 
-/* Input and textarea focus state */
-.stTextInput input:focus, .stNumberInput input:focus, .stTextArea textarea:focus {
-    outline: none;
-    border-color: #3778c2;
-    box-shadow: 0 0 0 3px rgba(55, 120, 194, 0.3);
+/* Sidebar-Hintergrund und Textfarbe */
+.stSidebar {
+    background-color: #fdfdfd;
+}
+.stSidebar [data-testid="stSidebar"] {
+    background-color: #fdfdfd;
+}
+.stSidebar h2 {
+    color: #333333;
 }
 
-/* Style Streamlit buttons */
-.stButton button {
+/* Schaltflächen und Widgets */
+.css-1n76uvr {
     background-color: #3778c2;
     color: #ffffff;
-    border-radius: 4px;
-    border: none;
-    padding: 0.5rem 1rem;
-    font-size: 1rem;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
-
-/* Button hover, active, focus, and disabled states */
-.stButton button:hover {
+.css-1n76uvr:hover {
     background-color: #285a8e;
 }
-.stButton button:active {
-    background-color: #1f4775;
+.css-1n76uvr:disabled {
+    background: rgba(255, 255, 255, 0.85);
+    color: #999999;
 }
-.stButton button:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(55, 120, 194, 0.5);
-}
-.stButton button:disabled {
-    background-color: #999999;
-    cursor: not-allowed;
+.css-1n76uvr:disabled:hover {
+    background: rgba(255, 255, 255, 0.85);
 }
 
-/* Slightly bolden labels for various input widgets */
-.stSelectbox label, .stMultiSelect label, .stSlider label, .stRadio label, .stCheckbox label, .stFileUploader label {
-    font-weight: 600;
+/* Fehlermeldungen und Warnungen */
+.css-14redg8 {
+    background-color: #F05136 !important;
+}
+.css-14redg8 h4 {
+    color: #ffffff !important;
+}
+.css-ezjlbv {
+    background-color: #FFFAE6 !important;
+    border-left: 4px solid #F1B93F !important;
+}
+.css-12w0qpk {
+    background-color: #fff4f4 !important;
+    border-left: 4px solid #d0402b !important;
 }
 
-/* Scrollbar styling for better UX */
-* {
-    scrollbar-width: thin;
-    scrollbar-color: #bbbbbb #e6e6e6;
+/* Info- und Warnung-Icons */
+.css-fk4esq svg {
+    color: #F1B93F !important;
 }
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+.css-afzk3g svg {
+    color: #d0402b !important;
 }
-::-webkit-scrollbar-track {
+
+/* Prompt-Anzeige (st.code) formatieren */
+element.style [data-testid="stCodeBlock"] {
     background: #e6e6e6;
-    border-radius: 4px;
-}
-::-webkit-scrollbar-thumb {
-    background-color: #bbbbbb;
-    border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background-color: #999999;
-}
-
-/* Hyperlink styling */
-a {
-    color: #3778c2;
-    text-decoration: none;
-}
-a:hover {
-    color: #285a8e;
-    text-decoration: underline;
+    color: #000000;
 }
