@@ -1,55 +1,56 @@
-# logic/parser.py
-import re
-from bs4 import BeautifulSoup
 import requests
-from data.models import AdInfo
+from bs4 import BeautifulSoup
+import re
 
-def parse_ad(url: str = None, text: str = None) -> AdInfo:
+def parse_ad(url: str) -> dict:
     """
-    Parse an advertisement either from a URL or from raw text.
-    Returns an AdInfo object with title, price, location, and description.
+    Lädt die Kleinanzeigen-Seite von 'url', parst Titel, Preis, Beschreibung
+    und gibt ein Dict mit {"title", "price", "description"} zurück.
+    Kann Exception werfen, wenn Request fehlschlägt.
     """
-    # ---------- (1) Analyse per URL -----------------------------------------
-    if url:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; KleinanzeigenBot/1.0)"}
+    resp = requests.get(url, headers=headers, timeout=10)
+    resp.raise_for_status()  # bei HTTP-Fehlern Exception
 
-        # Titel
-        title = soup.find("h1").get_text(strip=True) if soup.find("h1") else ""
-        # Preis
-        price = next((t.strip() for t in soup.stripped_strings if "€" in t), "")
-        # Ort
-        location = ""
-        loc_match = soup.find(string=re.compile(r"^\d{4,5}\s"))
-        if loc_match:
-            location = loc_match.strip()
-            location = re.sub(r"\s+\d{1,2}\.\d{1,2}\.\d{4}$", "", location)  # Datum entfernen
-        # Beschreibung
-        desc_container = soup.find(id="viewad-description") or soup.find("div", class_="AdDescription")
-        description = desc_container.get_text(" ", strip=True) if desc_container else ""
+    html = resp.text
+    soup = BeautifulSoup(html, "html.parser")
 
-        return AdInfo(title=title, price=price, location=location, description=description)
+    # Title
+    title = ""
+    meta_title = soup.find("meta", property="og:title")
+    if meta_title and meta_title.get("content"):
+        title = meta_title["content"].strip()
 
-    # ---------- (2) Analyse per Freitext -----------------------------------
-    elif text:
-        lines = [l.strip() for l in text.splitlines() if l.strip()]
-        title = lines[0] if lines else ""
-        price = next((l for l in lines if "€" in l), "")
-        location = next((l for l in lines if re.match(r"^\d{4,5}\s", l)), "")
-        description = "\n".join(l for l in lines if l not in (title, price, location))
-        return AdInfo(title=title, price=price, location=location, description=description)
+    # alt: h1
+    if not title:
+        h1_tag = soup.find("h1")
+        if h1_tag:
+            title = h1_tag.get_text().strip()
 
+    # price
+    price = ""
+    # Versuche es mit einer class, in der "price" steht
+    price_span = soup.find(attrs={"class": re.compile(r"price|Price|preis|PREIS")})
+    if price_span:
+        price = price_span.get_text().strip()
     else:
-        raise ValueError("parse_ad benötigt entweder url oder text.")
+        # fallback: irgendeine Stelle mit '€'
+        price_text = soup.find(text=lambda t: "€" in t if t else False)
+        if price_text:
+            price = price_text.strip()
 
-def parse_search_input(query: str) -> str:
-    """
-    Placeholder parser for hotel search queries.
-    Currently returns the query unchanged. In the future, this could normalize or extract details.
-    """
-    # No special parsing at the moment
-    return query
+    # description
+    description = ""
+    desc_par = soup.find("p", attrs={"class": re.compile(r"description|Description")})
+    if desc_par:
+        description = desc_par.get_text().strip()
+    else:
+        meta_desc = soup.find("meta", {"name": "description"})
+        if meta_desc and meta_desc.get("content"):
+            description = meta_desc["content"].strip()
 
-# Additional parsing functions can be added here as needed in the future.
+    return {
+        "title": title,
+        "price": price,
+        "description": description
+    }
