@@ -3,11 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 from data.models import AdInfo  # Datenklasse für Anzeigeninformationen
 
-ChatGPT:
-Um die Extraktion von weiteren Informationen wie Bild-URLs und Kontaktinformationen aus der Webseite zu ergänzen, können wir die Funktion erweitern. Hier ist eine verbesserte Version, die zusätzlich Bilder und Kontaktinformationen extrahiert:
-
-python
-Kopieren
 import requests
 from bs4 import BeautifulSoup
 
