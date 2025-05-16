@@ -1,85 +1,26 @@
-# logic/negotiation.py  (Kopfbereich)
-
-from datetime import datetime, timedelta, time
-from typing import List, Dict
-
 from data.models import AdInfo
-from logic.llm_client import LLMClient
-from logic.calendar import load_calendar, get_available_appointments
+from logic.llm_client import ask_openai, ask_ollama
+from logic.calendar import load_calendar_with_status, get_available_appointments
 
 # ------------------------------------------------------------
-# Kalender: nächsten freien Slot ermitteln (optional)
-try:
-    events = load_events_from_ics("data/calendar.ics")
-    free_slots = find_free_slots(events)
-    next_slot = free_slots[0] if free_slots else None
-except Exception:
-    next_slot = None
+# Beispielhafter Code, falls du hier etwas aus der alten
+# "Verhandlungs-Logik" übernehmen willst.
+# Momentan wird alles durch das LLM generiert,
+# daher ist dieses Modul optional oder könnte entfernt werden.
 # ------------------------------------------------------------
 
-# Mapping von Zweck → kurze Beschreibung im Prompt
-PURPOSE_PROMPT_MAP: Dict[str, str] = {
-    "Interesse bekunden (Verfügbarkeit)": "den Verkäufer fragen, ob der Artikel noch verfügbar ist",
-    "Preis verhandeln": "einen niedrigeren Preis vorschlagen",
-    "Zustand / Qualität erfragen": "nach dem genauen Zustand und möglichen Gebrauchsspuren fragen",
-    "Abhol- oder Besichtigungstermin vorschlagen": "einen Termin zur Besichtigung bzw. Abholung vorschlagen",
-    "Lieferoptionen anfragen": "nach Versand- oder Liefermöglichkeiten fragen",
-    "Zusätzliche Bilder anfordern": "um zusätzliche Bilder des Artikels bitten",
-    "Garantie / Rechnung erfragen": "nach Garantie oder Rechnung erkundigen",
-    "Mehrere Artikel bündeln (Paketpreis)": "einen Paketpreis für mehrere Artikel anfragen",
-    "Standort / Entfernung klären": "nach der genauen Adresse bzw. Entfernung fragen",
-    "Zahlungsmethode anfragen": "nach bevorzugter Zahlungsmethode fragen",
-}
-
-def _tone_instructions(tone: str):
-    """Gibt Begrüßung, Stilhinweis und Grußformel je nach Tonfall zurück."""
-    tone_lower = tone.lower()
-    if tone_lower.startswith("seriös"):
-        return {
-            "greeting": "Guten Tag",
-            "style": (
-                "Schreibe in einem förmlichen, professionellen Stil (Sie-Form). "
-                "Achte auf Höflichkeit und klare Formulierungen."
-            ),
-            "closing": "Mit freundlichen Grüßen",
-        }
-    elif tone_lower.startswith("ausgewogen"):
-        return {
-            "greeting": "Hallo",
-            "style": (
-                "Schreibe in einem freundlichen, professionellen Stil (Du oder Sie je nach Kontext). "
-                "Klinge zugänglich, aber nicht zu salopp."
-            ),
-            "closing": "Beste Grüße",
-        }
-    else:  # witzig
-        return {
-            "greeting": "Hallöchen",
-            "style": (
-                "Schreibe locker, humorvoll und trotzdem respektvoll. "
-                "Baue gerne einen kleinen Wortwitz ein, ohne unseriös zu wirken."
-            ),
-            "closing": "Liebe Grüße",
-        }
-
-def generate_message(min_price: int, max_price: int) -> str:
+def generate_message(ad_info: AdInfo, text_options: list, chosen_model="openai"):
     """
-    Generate a negotiation message given a minimum and maximum price range.
-    Returns a polite inquiry message in German proposing a price.
+    Beispiel: generiert eine Nachricht basierend auf AdInfo,
+    einer Liste von ausgewählten Textoptionen und dem gewählten Modell.
+    Hier könnte man das LLM ansprechen oder man behält eine
+    Mini-Regel-Logik. Derzeit nicht aktiv genutzt in `app.py`.
     """
-    if min_price > max_price:
-        raise ValueError("min_price cannot be greater than max_price")
+    # Placeholder
+    prompt = f"Artikel: {ad_info.title} (Preis: {ad_info.price})\n"
+    prompt += "Ausgewählte Optionen:\n" + ", ".join(text_options)
 
-    # Decide on an offer price (use midpoint of range as a starting offer)
-    if min_price == max_price:
-        offer_price = min_price
+    if chosen_model.lower() == "openai":
+        return ask_openai(prompt)
     else:
-        offer_price = (min_price + max_price) // 2
-
-    # Construct a polite negotiation message in German
-    message = (
-        f"Hallo, ich interessiere mich sehr für den Artikel. "
-        f"Wären Sie bereit, ihn mir für etwa **{offer_price} €** zu verkaufen? "
-        f"Ich könnte zwischen {min_price} € und {max_price} € bezahlen."
-    )
-    return message
+        return ask_ollama(prompt)
