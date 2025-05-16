@@ -1,56 +1,45 @@
+import re
 import requests
 from bs4 import BeautifulSoup
-import re
+from datetime import datetime
+from data.models import AdInfo  # Datenklasse für Anzeigeninformationen
 
-def parse_ad(url: str) -> dict:
+def parse_ad(url: str):
     """
-    Lädt die Kleinanzeigen-Seite von 'url', parst Titel, Preis, Beschreibung
-    und gibt ein Dict mit {"title", "price", "description"} zurück.
-    Kann Exception werfen, wenn Request fehlschlägt.
+    Ruft die Kleinanzeigen-Seite unter der gegebenen URL ab und extrahiert Titel, Preis, Ort und Beschreibung.
+    Gibt ein AdInfo-Objekt mit diesen Informationen zurück (oder ein leeres dict bei Fehler).
     """
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; KleinanzeigenBot/1.0)"}
-    resp = requests.get(url, headers=headers, timeout=10)
-    resp.raise_for_status()  # bei HTTP-Fehlern Exception
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+    except Exception as e:
+        # Fehler beim Abruf
+        return {}
 
-    html = resp.text
-    soup = BeautifulSoup(html, "html.parser")
-
-    # Title
-    title = ""
-    meta_title = soup.find("meta", property="og:title")
-    if meta_title and meta_title.get("content"):
-        title = meta_title["content"].strip()
-
-    # alt: h1
-    if not title:
-        h1_tag = soup.find("h1")
-        if h1_tag:
-            title = h1_tag.get_text().strip()
-
-    # price
+    soup = BeautifulSoup(resp.content, 'html.parser')
+    # Titel extrahieren
+    title = soup.find('h1').get_text(strip=True) if soup.find('h1') else ""
+    # Beschreibung extrahieren (erstes <p>-Element)
+    desc_tag = soup.find('p')
+    description = desc_tag.get_text(" ", strip=True) if desc_tag else ""
+    # Preis extrahieren (erstes Vorkommen im Format "VB", "€", etc.)
     price = ""
-    # Versuche es mit einer class, in der "price" steht
-    price_span = soup.find(attrs={"class": re.compile(r"price|Price|preis|PREIS")})
-    if price_span:
-        price = price_span.get_text().strip()
-    else:
-        # fallback: irgendeine Stelle mit '€'
-        price_text = soup.find(text=lambda t: "€" in t if t else False)
-        if price_text:
-            price = price_text.strip()
+    price_tag = soup.find(string=re.compile(r"€"))
+    if price_tag:
+        price = price_tag.strip()
+    # Ort extrahieren (z.B. im Titel des Browser-Fensters oder meta-Daten)
+    location = ""
+    # Mögliche Stellen zur Ort-Extraktion:
+    meta_loc = soup.find('span', {"data-ui-name": "breadcrumb-zip-region"})
+    if meta_loc:
+        location = meta_loc.get_text(strip=True)
+    elif soup.title and soup.title.string:
+        # Falls im Titel der Seite ein Ort enthalten ist (nach dem Bindestrich)
+        title_text = soup.title.string
+        if "-" in title_text:
+            loc_part = title_text.split("-")[-1].strip()
+            location = loc_part
 
-    # description
-    description = ""
-    desc_par = soup.find("p", attrs={"class": re.compile(r"description|Description")})
-    if desc_par:
-        description = desc_par.get_text().strip()
-    else:
-        meta_desc = soup.find("meta", {"name": "description"})
-        if meta_desc and meta_desc.get("content"):
-            description = meta_desc["content"].strip()
-
-    return {
-        "title": title,
-        "price": price,
-        "description": description
-    }
+    # AdInfo-Objekt zurückgeben
+    return AdInfo(title=title, price=price, location=location, description=description)
