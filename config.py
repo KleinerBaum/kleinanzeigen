@@ -33,7 +33,6 @@ except ModuleNotFoundError:
 # 4) Weitere Defaults
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Berlin")
 
 # 5) Optional sofort in openai-SDK registrieren
