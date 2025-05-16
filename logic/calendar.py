@@ -1,159 +1,182 @@
 import os
+import logging
 from datetime import datetime, date, time, timezone
 from zoneinfo import ZoneInfo
 
 try:
     from icalendar import Calendar
 except ImportError as e:
-    # If icalendar library is not installed, raise an error with guidance
     raise ImportError("icalendar library is required for calendar parsing. Please install it.") from e
 
-# Determine base path for the data directory (assuming this file is in a package)
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 DEFAULT_ICS_PATH = os.path.join(DATA_DIR, "Kalender.ics")
 
-def load_calendar(ics_path: str = None):
+def load_calendar_with_status(ics_path: str = None):
     """
-    Load and parse an ICS calendar file. Returns an icalendar Calendar object.
+    Lädt die ICS-Datei und gibt (calendar_object, status) zurück.
+    Mögliche status-Werte:
+      - 'ok'           : Kalender erfolgreich geladen
+      - 'not_found'    : Datei nicht gefunden
+      - 'empty_file'   : Datei existiert, ist aber leer
+      - 'parse_error'  : Fehler beim Parsen (Format ungültig)
+    Bei Fehlern wird der Kalender None, aber status ungleich 'ok' zurückgegeben.
     """
     path = ics_path or DEFAULT_ICS_PATH
     if not os.path.isfile(path):
-        # Return None if file not found
-        print(f"ICS file not found at {path}")
-        return None
+        return None, "not_found"
     try:
         with open(path, "rb") as f:
             data = f.read()
-        cal = Calendar.from_ical(data)
-        return cal
     except Exception as e:
-        # If parsing fails, log the error and return None
-        print(f"Failed to parse ICS file: {e}")
-        return None
+        logging.error(f"Fehler beim Öffnen der Kalenderdatei: {e}")
+        return None, "not_found"
 
-def get_available_appointments(cal: "Calendar" = None, timezone_str: str = "UTC"):
+    if not data or data.strip() == b"":
+        return None, "empty_file"
+
+    try:
+        cal = Calendar.from_ical(data)
+        return cal, "ok"
+    except Exception as e:
+        logging.error(f"Fehler beim Parsen des Kalenders: {e}")
+        return None, "parse_error"
+
+def get_available_appointments(cal: "Calendar", timezone_str: str = "UTC"):
     """
-    Extract upcoming available appointment slots from a Calendar object.
-    Returns a list of formatted time slot strings for display.
-    If no Calendar is provided or no slots available, returns an empty list.
+    Extrahiert zukünftige Termine (VEVENTs) aus dem Calendar-Objekt und gibt eine
+    Liste von formatierten Strings zurück. Sortiert nach Startzeit.
     """
-    if cal is None:
-        # Load default calendar if none provided
-        cal = load_calendar()
-        if cal is None:
-            return []
-    # Use given timezone for output formatting
+    if not cal:
+        return []
     try:
         tz = ZoneInfo(timezone_str)
     except Exception:
         tz = timezone.utc
+
     slots = []
     now = datetime.now(tz)
-    # Iterate over all events in the calendar
     for component in cal.walk():
         if component.name == "VEVENT":
             dtstart_prop = component.get('dtstart')
             if not dtstart_prop:
                 continue
-            dtstart = dtstart_prop.dt
-            # Get end or derive from duration
             dtend_prop = component.get('dtend')
             duration_prop = component.get('duration')
+
+            # Konvertiere dtstart, dtend zu datetime
+            dtstart = dtstart_prop.dt
             if dtend_prop:
                 dtend = dtend_prop.dt
             elif duration_prop:
-                # If duration is provided instead of dtend
-                try:
-                    dur = duration_prop.dt  # this is a datetime.timedelta
-                except:
-                    dur = duration_prop
-                if isinstance(dtstart, datetime):
-                    dtend = dtstart + dur
-                elif isinstance(dtstart, date):
-                    # Add days for date (timedelta in days likely)
-                    dtend = dtstart + dur
-                else:
-                    dtend = dtstart
+                # dtend aus dtstart + duration ableiten
+                dur = getattr(duration_prop, 'dt', duration_prop)
+                dtend = dtstart + dur
             else:
-                # No dtend or duration given, assume zero-length event
                 dtend = dtstart
-            # Ensure dtstart and dtend are datetime for uniform handling
+
+            # Falls dtstart nur ein Datum ohne Uhrzeit ist, Ganz-Tages-Event
             if isinstance(dtstart, date) and not isinstance(dtstart, datetime):
-                # Treat all-day event: from start date at 00:00 to end date at 23:59 of the same day (if end is same date)
-                # We'll interpret availability as the whole day
+                # Ganztägiges Event: 00:00 bis 23:59
                 start_dt = datetime(dtstart.year, dtstart.month, dtstart.day, 0, 0, tzinfo=tz)
-                # If dtend is date, assume inclusive end of that day
+                # dtend analog
                 if isinstance(dtend, date) and not isinstance(dtend, datetime):
                     end_date = dtend
                 else:
-                    # if dtend is datetime or date combined, get date part
                     end_date = dtend.date() if isinstance(dtend, datetime) else dtend
                 end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, tzinfo=tz)
             else:
-                # If dtstart has no tz, assume it is in given timezone
                 if isinstance(dtstart, datetime):
-                    if dtstart.tzinfo is None:
-                        start_dt = dtstart.replace(tzinfo=tz)
-                    else:
-                        start_dt = dtstart.astimezone(tz)
+                    start_dt = dtstart.astimezone(tz) if dtstart.tzinfo else dtstart.replace(tzinfo=tz)
                 else:
-                    # dtstart might be something unusual, skip if not datetime or date
                     continue
-                # do similar for dtend
+
                 if isinstance(dtend, datetime):
-                    if dtend.tzinfo is None:
-                        end_dt = dtend.replace(tzinfo=tz)
-                    else:
-                        end_dt = dtend.astimezone(tz)
+                    end_dt = dtend.astimezone(tz) if dtend.tzinfo else dtend.replace(tzinfo=tz)
                 elif isinstance(dtend, date):
-                    # if dtend is date but dtstart had time, just assign end at end of that day
                     end_dt = datetime(dtend.year, dtend.month, dtend.day, 23, 59, tzinfo=tz)
                 else:
                     end_dt = start_dt
-            # Filter out past events (end time before now or start time before now)
+
+            # Vergangene Termine filtern
             if end_dt < now:
                 continue
-            if start_dt < now:
-                # If start is in the past but end is future (ongoing event), adjust start to now for availability
+            # Falls bereits begonnen, aber noch nicht zu Ende, start_dt an 'now' anpassen
+            if start_dt < now < end_dt:
                 start_dt = now
-            # Format the slot for display
-            # We'll display as "Weekday, dd. Month yyyy, HH:MM - HH:MM" or "(ganztägig)" if all-day
-            if start_dt.date() == end_dt.date():
-                # same day
-                day_str = start_dt.strftime("%A")
-                # Try to get locale in German if timezone_str is a locale, but probably not. Use manual mapping for German days/months if needed.
-                # We will manually map to German names if the output is in English, for user-friendliness.
-                german_days = {
-                    "Monday": "Montag", "Tuesday": "Dienstag", "Wednesday": "Mittwoch",
-                    "Thursday": "Donnerstag", "Friday": "Freitag", "Saturday": "Samstag", "Sunday": "Sonntag"
-                }
-                german_months = {
-                    "January": "Januar", "February": "Februar", "March": "März", "April": "April", "May": "Mai",
-                    "June": "Juni", "July": "Juli", "August": "August", "September": "September", "October": "Oktober",
-                    "November": "November", "December": "Dezember"
-                }
-                day_name = german_days.get(day_str, day_str)
-                month_str = start_dt.strftime("%B")
-                month_name = german_months.get(month_str, month_str)
-                if start_dt.time() == time(0,0) and end_dt.hour == 23 and end_dt.minute == 59:
-                    # All-day event
-                    slot_str = f"{day_name}, {start_dt.day}. {month_name} {start_dt.year} (ganzt\u00e4gig)"
-                else:
-                    slot_str = (f"{day_name}, {start_dt.day}. {month_name} {start_dt.year}, "
-                                f"{start_dt.strftime('%H:%M')} - {end_dt.strftime('%H:%M')}")
-            else:
-                # Multi-day event or spans midnight
-                start_day_str = start_dt.strftime("%A")
-                end_day_str = end_dt.strftime("%A")
-                start_day_name = german_days.get(start_day_str, start_day_str)
-                end_day_name = german_days.get(end_day_str, end_day_str)
-                start_month_str = start_dt.strftime("%B")
-                end_month_str = end_dt.strftime("%B")
-                start_month_name = german_months.get(start_month_str, start_month_str)
-                end_month_name = german_months.get(end_month_str, end_month_str)
-                slot_str = (f"{start_day_name}, {start_dt.day}. {start_month_name} {start_dt.year}, {start_dt.strftime('%H:%M')} - "
-                            f"{end_day_name}, {end_dt.day}. {end_month_name} {end_dt.year}, {end_dt.strftime('%H:%M')}")
+
+            # Formatierter String
+            slot_str = format_timeslot(start_dt, end_dt)
             slots.append(slot_str)
-    # Sort slots by starting time for display
-    slots.sort()
-    return slots
+
+    # Sortierung nach Startzeit ist in der Formatierung nicht trivial,
+    # da wir nur Strings zurückgeben. Evtl. Hilfsstruktur nötig.
+    # Hier vereinfachter Ansatz: wir hängen (start_dt, slot_str) in eine Liste
+    # und sortieren nach start_dt, dann extrahieren slot_str:
+    sorted_slots = []
+    for component in cal.walk():
+        if component.name == "VEVENT":
+            dtstart_prop = component.get('dtstart')
+            if dtstart_prop:
+                dtstart_val = dtstart_prop.dt
+                if isinstance(dtstart_val, datetime):
+                    dtstart_val = dtstart_val.astimezone(tz)
+                elif isinstance(dtstart_val, date):
+                    dtstart_val = datetime(dtstart_val.year, dtstart_val.month, dtstart_val.day, 0, 0, tzinfo=tz)
+                # Gleiche Formatierung wie oben
+                dtend_val = component.get('dtend').dt if component.get('dtend') else dtstart_val
+                slot_str = format_timeslot(dtstart_val, dtend_val if dtend_val else dtstart_val)
+                # Check if end is in the future
+                if dtend_val and isinstance(dtend_val, datetime):
+                    if dtend_val.astimezone(tz) >= now:
+                        sorted_slots.append((dtstart_val, slot_str))
+                else:
+                    # Wenn dtend z.B. nur ein Datum
+                    if datetime(dtend_val.year, dtend_val.month, dtend_val.day, 23, 59, tzinfo=tz) >= now:
+                        sorted_slots.append((dtstart_val, slot_str))
+
+    sorted_slots = sorted(sorted_slots, key=lambda x: x[0])
+    # extrahieren nur die Strings, die in der Zukunft liegen
+    final_list = [s[1] for s in sorted_slots if s[0] >= now]
+    return final_list
+
+def format_timeslot(start_dt: datetime, end_dt: datetime) -> str:
+    """
+    Erstellt einen ansprechenden Text wie:
+    "Montag, 21.11.2025, 10:00 - 11:00"
+    oder "(ganztägig)" wenn 0-23:59
+    """
+    # Deutsche Wochentags- & Monatsnamen
+    german_days = {
+        "Monday": "Montag", "Tuesday": "Dienstag", "Wednesday": "Mittwoch",
+        "Thursday": "Donnerstag", "Friday": "Freitag", "Saturday": "Samstag", "Sunday": "Sonntag"
+    }
+    german_months = {
+        "January": "Januar", "February": "Februar", "March": "März", "April": "April", "May": "Mai",
+        "June": "Juni", "July": "Juli", "August": "August", "September": "September",
+        "October": "Oktober", "November": "November", "December": "Dezember"
+    }
+
+    day_str = start_dt.strftime("%A")
+    day_name = german_days.get(day_str, day_str)
+    month_str = start_dt.strftime("%B")
+    month_name = german_months.get(month_str, month_str)
+
+    # Ganztägiges Event (00:00 - 23:59)
+    if (start_dt.hour == 0 and start_dt.minute == 0) and (end_dt.hour == 23 and end_dt.minute == 59):
+        return f"{day_name}, {start_dt.day}. {month_name} {start_dt.year} (ganztägig)"
+    # Gleicher Tag
+    if start_dt.date() == end_dt.date():
+        return (
+            f"{day_name}, {start_dt.day}. {month_name} {start_dt.year}, "
+            f"{start_dt.strftime('%H:%M')} - {end_dt.strftime('%H:%M')}"
+        )
+    else:
+        # Mehrtägig oder über Mitternacht
+        end_day_str = end_dt.strftime("%A")
+        end_day_name = german_days.get(end_day_str, end_day_str)
+        end_month_str = end_dt.strftime("%B")
+        end_month_name = german_months.get(end_month_str, end_month_str)
+        return (
+            f"{day_name}, {start_dt.day}. {month_name} {start_dt.year}, {start_dt.strftime('%H:%M')} - "
+            f"{end_day_name}, {end_dt.day}. {end_month_name} {end_dt.year}, {end_dt.strftime('%H:%M')}"
+        )
