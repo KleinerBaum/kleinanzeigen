@@ -8,3 +8,4 @@ requests==2.31.0            # HTTP-Anfragen (Web Requests an Kleinanzeigen/OpenA
 tenacity==8.5.0             # Widerholungs-Logik (Retry-Mechanismen, z.B. für API-Aufrufe)
 tiktoken==0.4.0             # Tokenizer für GPT (Token-Zählung bei Prompt-Verarbeitung)
 python-dotenv==1.0.0        # Laden von Umgebungsvariablen aus .env-Datei
+urllib3<2
