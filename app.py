@@ -1,14 +1,14 @@
 import streamlit as st
-import config
+import config  # enthält OPENAI_API_KEY, OPENAI_MODEL, OLLAMA_MODEL, TIMEZONE
 from logic import calendar as calendar_logic
 from logic import parser
 from logic import llm_client
-from logic import negotiation  # import exists, even if not used for text generation
+from logic import negotiation  # Import vorhanden (derzeit nicht für Textgenerierung genutzt)
 
 # ----- Seiteneinstellungen -----
 st.set_page_config(
     page_title="Kleinanzeigen Verhandlungs-Assistent",
-    page_icon="🤖",
+    page_icon="",
     layout="centered"
 )
 
@@ -21,7 +21,6 @@ st.write(
 # ----- Modellauswahl in der Sidebar -----
 model_choice = st.sidebar.radio("Modell-Auswahl", ["OpenAI (ChatGPT API)", "Lokales LLM (Ollama)"])
 use_openai = model_choice.startswith("OpenAI")
-
 if not use_openai:
     st.sidebar.warning("Lokales Modell (Ollama) erfordert eine laufende Ollama-Installation (http://localhost:11434)")
 
@@ -43,38 +42,41 @@ text_modules = [
     "Reservierung erbitten",
     "Bundle-Angebot vorschlagen",
 ]
-
 selected_modules = st.multiselect("Wähle gewünschte Textbausteine aus:", text_modules)
 
-# ----- Inputs zum Artikel (Kleinanzeigen-URL) -----
-ad_url = st.text_input("Kleinanzeigen-URL", placeholder="https://www.kleinanzeigen.de/s-anzeige/beispiel...")
+# Erläuterung für Auswahl der Optionen
 st.write("Wähle die Optionen, die in deiner Nachricht berücksichtigt werden sollen:")
 
-# Beispiel: Wenn "Preisvorschlag machen" ausgewählt ist, zusätzlichen Input anfordern
+# Beispiel: Wenn "Preisvorschlag machen" ausgewählt ist, zusätzlichen Input anfordern 
 offered_price = None
 if "Preisvorschlag machen" in selected_modules:
     offered_price = st.number_input("Ihr Preisvorschlag (EUR)", min_value=1, step=1)
 
-# ----- Kalender laden & prüfen -----
+# ----- Inputs zum Artikel (Kleinanzeigen-URL) -----
+ad_url = st.text_input("Kleinanzeigen-URL", placeholder="https://www.kleinanzeigen.de/s-anzeige/beispiel...")
+
+# Kalender laden und verfügbare Termine anzeigen (falls Kalender vorhanden)
 calendar_obj, calendar_status = calendar_logic.load_calendar_with_status()
+appointments = calendar_logic.get_available_appointments(calendar_obj, timezone_str=config.TIMEZONE)
 selected_slots = []
-if calendar_obj:
-    # Versuchen, verfügbare Termine zu extrahieren
-    appointments = calendar_logic.get_available_appointments(calendar_obj, timezone_str=config.TIMEZONE)
-    if appointments:
-        selected_slots = st.multiselect("Verfügbare Termine auswählen (Abholung/Besichtigung):", appointments)
-    else:
-        st.info("Kalender geladen, aber keine Termine gefunden.")
+if appointments:
+    selected_slots = st.multiselect("Verfügbare Termine auswählen (Abholung/Besichtigung):", appointments)
 else:
-    if calendar_status == "not_found":
-        st.warning("Kalenderdatei nicht gefunden.")
-    elif calendar_status == "empty_file":
-        st.info("Kalenderdatei ist leer.")
-    elif calendar_status == "parse_error":
-        st.error("Kalender konnte nicht geladen werden (Formatfehler).")
+    # Hinweis, falls Kalender geladen wurde, aber keine Termine vorhanden sind
+    if calendar_obj is not None:
+        st.info("Kalender geladen, aber keine Termine gefunden.")
+
+# Zusätzliche Hinweise, falls beim Laden des Kalenders Fehler auftraten
+if calendar_status == "not_found":
+    st.warning("Kalenderdatei nicht gefunden.")
+elif calendar_status == "empty_file":
+    st.info("Kalenderdatei ist leer.")
+elif calendar_status == "parse_error":
+    st.error("Kalender konnte nicht geladen werden (Formatfehler).")
 
 # ----- Button: Nachricht generieren -----
 if st.button("Nachricht generieren"):
+
     # API-Key-Check, wenn OpenAI gewählt
     if use_openai:
         if not config.OPENAI_API_KEY:
@@ -97,9 +99,15 @@ if st.button("Nachricht generieren"):
         st.stop()
 
     # Titel, Preis, Beschreibung extrahieren
-    ad_title = ad_data.get("title", "")
-    ad_price = ad_data.get("price", "")
-    ad_desc = ad_data.get("description", "")
+    # (Wenn parse_ad ein AdInfo-Objekt liefert, Attribute nutzen; ansonsten Dictionary)
+    if hasattr(ad_data, "title"):
+        ad_title = ad_data.title or ""
+        ad_price = ad_data.price or ""
+        ad_desc = getattr(ad_data, "description", "") or ""
+    else:
+        ad_title = ad_data.get("title", "")
+        ad_price = ad_data.get("price", "")
+        ad_desc = ad_data.get("description", "")
 
     # Prompt erstellen
     prompt_parts = []
@@ -109,11 +117,12 @@ if st.button("Nachricht generieren"):
         prompt_parts.append(f"**Angebotsbeschreibung:** {ad_desc}")
     if ad_price:
         prompt_parts.append(f"**Angebotspreis laut Anzeige:** {ad_price}")
+
     # Ausgewählte Textbausteine in den Prompt integrieren
     if "Interesse bekunden" in selected_modules:
         prompt_parts.append("Du willst dein Interesse am Artikel bekunden.")
     if "Preisvorschlag machen" in selected_modules and offered_price:
-        prompt_parts.append(f"Du möchtest einen Preisvorschlag von {offered_price} Euro unterbreiten.")
+        prompt_parts.append(f"Du möchtest einen Preisvorschlag von {int(offered_price)} Euro unterbreiten.")
     if "Preis verhandelbar erfragen" in selected_modules:
         prompt_parts.append("Du fragst, ob der Preis noch verhandelbar ist.")
     if "Nach Zustand fragen" in selected_modules:
@@ -141,18 +150,20 @@ if st.button("Nachricht generieren"):
     if "Bundle-Angebot vorschlagen" in selected_modules:
         prompt_parts.append("Du fragst, ob es einen Rabatt gibt, falls du mehrere Artikel kaufst.")
 
-    # Finale Bitte an das LLM
+    # Finale Bitte an das LLM (Abschluss des Prompts)
     prompt_parts.append(
         "Bitte schreibe eine freundliche, höfliche Nachricht auf Deutsch an den Anbieter, "
         "in der alle oben genannten Punkte eingebunden werden."
     )
     final_prompt = "\n".join(prompt_parts)
 
+    # Zeige den zusammengestellten Prompt (Debug/Info)
     st.write("**Gesammelter Prompt:**")
     st.code(final_prompt, language="markdown")
 
-    # LLM aufrufen
+    # LLM aufrufen 
     if use_openai:
+        # OpenAI API über llm_client aufrufen
         try:
             generated_text = llm_client.ask_openai(final_prompt, model=config.OPENAI_MODEL)
             st.subheader("Generierte Nachricht (OpenAI):")
@@ -160,19 +171,20 @@ if st.button("Nachricht generieren"):
         except Exception as e:
             st.error(f"Fehler bei der OpenAI-Anfrage: {e}")
     else:
-        # Lokales LLM (Ollama)
+        # Lokales LLM (Ollama) aufrufen
         try:
             generated_text = llm_client.ask_ollama(final_prompt, model=config.OLLAMA_MODEL)
             st.subheader("Generierte Nachricht (Lokales LLM):")
             st.write(generated_text)
         except Exception as e:
+            # Fallback auf OpenAI, falls das lokale Modell nicht verfügbar ist
             st.warning(f"Lokales Modell nicht verfügbar. Fallback auf OpenAI: {e}")
             if not config.OPENAI_API_KEY:
                 st.error("OpenAI API-Key ist nicht gesetzt. Generierung nicht möglich.")
-                st.stop()
-            try:
-                generated_text = llm_client.ask_openai(final_prompt, model=config.OPENAI_MODEL)
-                st.subheader("Generierte Nachricht (Fallback OpenAI):")
-                st.write(generated_text)
-            except Exception as e2:
-                st.error(f"Fehler bei der OpenAI-Anfrage (Fallback): {e2}")
+            else:
+                try:
+                    generated_text = llm_client.ask_openai(final_prompt, model=config.OPENAI_MODEL)
+                    st.subheader("Generierte Nachricht (Fallback OpenAI):")
+                    st.write(generated_text)
+                except Exception as e2:
+                    st.error(f"Fehler bei der OpenAI-Anfrage (Fallback): {e2}")
