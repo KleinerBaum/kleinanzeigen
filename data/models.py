@@ -1,9 +1,14 @@
-from dataclasses import dataclass
+"""
+Optionales Datenmodell:
+Hier könntest du eine einfache Dataklasse definieren,
+wenn du an manchen Stellen strukturierte Objekte verwenden willst.
+"""
 
-@dataclass
 class AdInfo:
-    """Datenstruktur für extrahierte Anzeigeninformationen."""
-    title: str
-    price: str
-    location: str
-    description: str = ""
+    def __init__(self, title: str = "", price: str = "", description: str = ""):
+        self.title = title
+        self.price = price
+        self.description = description
+
+    def __repr__(self):
+        return f"<AdInfo title='{self.title}', price='{self.price}'>"
