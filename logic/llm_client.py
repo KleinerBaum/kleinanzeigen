@@ -4,10 +4,10 @@ import config
 def ollama_available() -> bool:
     """
     Prüft, ob Ollama (lokales LLM) installiert und erreichbar ist.
-    Einfacher Test: Versuche eine GET-Anfrage an localhost:11434
+    Einfacher Test: Versuche eine GET-Anfrage an http://127.0.0.1:11434/v1
     """
     try:
-        resp = requests.get("http://localhost:11434/version", timeout=1)
+        resp = requests.get("http://127.0.0.1:11434/v1", timeout=1)
         return resp.status_code == 200
     except:
         return False
@@ -32,10 +32,10 @@ def ask_openai(prompt: str, model: str = None) -> str:
 def ask_ollama(prompt: str, model: str = None) -> str:
     """
     Fragt das lokale LLM (Ollama) an (OpenAI-kompatibles Interface).
-    Wir setzen openai.api_base auf http://localhost:11434/v1.
+    Wir setzen openai.api_base auf http://127.0.0.1:11434/v1.
     """
     import openai
-    openai.api_base = "http://localhost:11434/v1"
+    openai.api_base = "http://127.0.0.1:11434/v1"
     openai.api_key = "unused"  # Dient nur als Platzhalter
 
     chosen_model = model or config.OLLAMA_MODEL
