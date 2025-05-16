@@ -1,26 +1,47 @@
+"""
+Globale Konfiguration (Modelle, API-Keys, Zeitzone).
+Lädt .env lokal UND Streamlit-Secrets in der Cloud.
+"""
+
 import os
-import streamlit as st
+from pathlib import Path
 
-# 1. Zuerst versuchen wir, den Key aus den Umgebungsvariablen zu lesen 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# 1) .env einlesen (nur lokal relevant)
+try:
+    from dotenv import load_dotenv
 
-# 2. Falls keiner in der Umgebung, aus den Streamlit Secrets laden 
-if not OPENAI_API_KEY:
-    try:
+    # .env im Projekt­root suchen
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    load_dotenv(dotenv_path=env_path, override=False)
+except ImportError:
+    # python-dotenv nicht installiert → ignorieren
+    pass
+
+# 2) Key zunächst aus der Umgebung holen
+OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
+
+# 3) Wenn leer → versuchen, aus Streamlit-Secrets zu lesen
+try:
+    import streamlit as st  # funktioniert nur, wenn Code im Streamlit-Runtime läuft
+
+    if not OPENAI_API_KEY and "OPENAI_API_KEY" in st.secrets:
         OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-    except Exception:
-        OPENAI_API_KEY = None
+except ModuleNotFoundError:
+    # Streamlit nicht importierbar (z. B. bei reinem CLI-Script) → ignorieren
+    pass
 
-# Optional: weitere Konfigurationsvariablen 
+# 4) Weitere Defaults
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Berlin")
 
-# Wenn OpenAI installiert ist und wir einen API-Key haben, setzen wir ihn direkt 
+# 5) Optional sofort in openai-SDK registrieren
 try:
     import openai
+
     if OPENAI_API_KEY:
         openai.api_key = OPENAI_API_KEY
 except ImportError:
-    # openai-Bibliothek evtl. nicht installiert (wenn nur lokales LLM genutzt wird)
+    # openai nicht installiert – z. B. reiner Ollama-Betrieb
     pass
