@@ -1,26 +1,26 @@
+# Optionales Verhandlungs-Modul (derzeit nicht direkt in Benutzung, da LLM die Nachricht generiert)
+
+from logic import llm_client
 from data.models import AdInfo
-from logic.llm_client import ask_openai, ask_ollama
-from logic.calendar import load_calendar_with_status, get_available_appointments
 
-# ------------------------------------------------------------
-# Beispielhafter Code, falls du hier etwas aus der alten
-# "Verhandlungs-Logik" übernehmen willst.
-# Momentan wird alles durch das LLM generiert,
-# daher ist dieses Modul optional oder könnte entfernt werden.
-# ------------------------------------------------------------
-
-def generate_message(ad_info: AdInfo, text_options: list, chosen_model="openai"):
+def generate_message(ad_info: AdInfo, text_options: list, chosen_model="openai") -> str:
     """
     Beispiel: generiert eine Nachricht basierend auf AdInfo,
     einer Liste von ausgewählten Textoptionen und dem gewählten Modell.
-    Hier könnte man das LLM ansprechen oder man behält eine
-    Mini-Regel-Logik. Derzeit nicht aktiv genutzt in `app.py`.
+    Hier könnte man das LLM ansprechen oder eine regelbasierte Logik implementieren.
+    (Derzeit als Platzhalter.)
     """
-    # Placeholder
+    # Prompt aus AdInfo und Optionen zusammenbauen (nur Platzhalter-Implementierung)
     prompt = f"Artikel: {ad_info.title} (Preis: {ad_info.price})\n"
     prompt += "Ausgewählte Optionen:\n" + ", ".join(text_options)
-
+    # LLM je nach Modelltyp ansprechen
     if chosen_model.lower() == "openai":
-        return ask_openai(prompt)
+        try:
+            return llm_client.ask_openai(prompt)
+        except Exception as e:
+            raise
     else:
-        return ask_ollama(prompt)
+        try:
+            return llm_client.ask_ollama(prompt)
+        except Exception as e:
+            raise
