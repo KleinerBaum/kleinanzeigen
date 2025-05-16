@@ -23,7 +23,7 @@ def ask_openai(prompt: str, model: str = None) -> str:
 def ask_ollama(prompt: str, model: str = None) -> str:
     """
     Fragt das lokale LLM (Ollama) an (OpenAI-kompatibles API-Format).
-    Setzt die OpenAI-API Base URL auf http://localhost:11434/v1.
+    Setzt die OpenAI-API Base URL auf http://127.0.0.1:11434/v1.
     """
     openai.api_base = "http://127.0.0.1:11434/v1"
     openai.api_key = "none"  # Dummy-Key, da Ollama keine Auth verwendet
