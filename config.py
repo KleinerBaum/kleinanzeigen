@@ -15,14 +15,14 @@ if not openai.api_key:
         "oder `USE_OLLAMA=True` in config.py wählen."
     )
 # 2) Key zunächst aus der Umgebung holen
-OPENAI_API_KEY: str | None = os.getenv("openai_api_key")
+openai_api_key: str | None = os.getenv("openai_api_key")
 
 # 3) Wenn leer → versuchen, aus Streamlit-Secrets zu lesen
 try:
     import streamlit as st  # funktioniert nur, wenn Code im Streamlit-Runtime läuft
 
-    if not OPENAI_API_KEY and "openai_api_key" in st.secrets:
-        OPENAI_API_KEY = st.secrets["openai_api_key"]
+    if not openai_api_key and "openai_api_key" in st.secrets:
+        openai_api_key = st.secrets["openai_api_key"]
 except ModuleNotFoundError:
     # Streamlit nicht importierbar (z. B. bei reinem CLI-Script) → ignorieren
     pass
