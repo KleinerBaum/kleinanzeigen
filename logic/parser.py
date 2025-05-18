@@ -129,7 +129,7 @@ def fetch_listing(url):
         print(f"Fehler beim Abrufen der Seite: {str(e)}")
         return None
 
-def parse_ad(url: str):
+def parse_ad(url: str) -> AdInfo:
     """
     Ruft die Kleinanzeigen-Seite unter der gegebenen URL ab und extrahiert Titel, Preis, Ort und Beschreibung.
     Gibt ein AdInfo-Objekt mit diesen Informationen zurück (oder ein leeres dict bei Fehler).
@@ -156,4 +156,13 @@ def parse_ad(url: str):
     description_tag = soup.find('div', class_=re.compile(r'Description|description'))
     description = description_tag.get_text(strip=True) if description_tag else ""
 
-    return AdInfo(title=title, price=price, location=location, description=description)
+    ad_info = AdInfo(
+        title=title,
+        price=price,
+        location=location,
+        description=description,
+        image_urls=image_urls,
+        contact_info=contact_info,
+        url=url
+    )
+    return ad_info
