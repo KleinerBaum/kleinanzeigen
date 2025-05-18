@@ -5,27 +5,24 @@ Lädt .env lokal UND Streamlit-Secrets in der Cloud.
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
-# 1) .env einlesen (nur lokal relevant)
-try:
-    from dotenv import load_dotenv
-
-    # .env im Projekt­root suchen
-    env_path = Path(__file__).resolve().parent.parent / ".env"
-    load_dotenv(dotenv_path=env_path, override=False)
-except ImportError:
-    # python-dotenv nicht installiert → ignorieren
-    pass
-
+openai.api_key = st.secrets.get("openai_api_key", None) or os.getenv("openai_api_key")
+if not openai.api_key:
+    raise RuntimeError(
+        "OpenAI-Modus aktiv, aber kein API-Key gefunden. "
+        "Bitte in `.streamlit/secrets.toml` oder als ENV `openai_api_key` setzen "
+        "oder `USE_OLLAMA=True` in config.py wählen."
+    )
 # 2) Key zunächst aus der Umgebung holen
-OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY: str | None = os.getenv("openai_api_key")
 
 # 3) Wenn leer → versuchen, aus Streamlit-Secrets zu lesen
 try:
     import streamlit as st  # funktioniert nur, wenn Code im Streamlit-Runtime läuft
 
-    if not OPENAI_API_KEY and "OPENAI_API_KEY" in st.secrets:
-        OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+    if not OPENAI_API_KEY and "openai_api_key" in st.secrets:
+        OPENAI_API_KEY = st.secrets["openai_api_key"]
 except ModuleNotFoundError:
     # Streamlit nicht importierbar (z. B. bei reinem CLI-Script) → ignorieren
     pass
@@ -39,8 +36,8 @@ TIMEZONE = os.getenv("TIMEZONE", "Europe/Berlin")
 try:
     import openai
 
-    if OPENAI_API_KEY:
-        openai.api_key = OPENAI_API_KEY
+    if openai_api_key:
+        openai.api_key = openai_api_key
 except ImportError:
     # openai nicht installiert – z. B. reiner Ollama-Betrieb
     pass
