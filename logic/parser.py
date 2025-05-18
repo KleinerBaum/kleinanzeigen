@@ -1,20 +1,7 @@
 import re
 import requests
 from bs4 import BeautifulSoup
-
 from data.models import AdInfo  # Datenklasse für Anzeigeninformationen
-
-ChatGPT:
-Sehr gut, dass du den kompletten Code gepostet hast!
-Ich habe deinen Code analysiert, die häufigsten Fehlerquellen markiert und für dich eine optimierte, bugfreie Version erstellt – inklusive sauberem Indent, robuster Fehlerbehandlung und Kommentaren.
-
-Optimierte Version (bitte so übernehmen und ggf. anpassen)
-python
-Kopieren
-Bearbeiten
-import re
-import requests
-from bs4 import BeautifulSoup
 
 def extract_data_from_url(url):
     try:
@@ -112,7 +99,6 @@ def extract_data_from_url(url):
     except Exception as e:
         print(f"Fehler bei der Datenextraktion: {e}")
         return None
-        
         
 def fetch_listing(url):
     headers = {
