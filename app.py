@@ -1,7 +1,8 @@
 import streamlit as st
 import config  # enthält OPENAI_API_KEY, OPENAI_MODEL, OLLAMA_MODEL, TIMEZONE
-from logic import calendar as calendar_logic
-from logic import parser
+from logic.calendar import load_calendar_with_status, get_available_appointments
+from logic.calendar import calendar_logic
+from logic.parser import extract_data_from_url
 from logic import llm_client
 from logic import negotiation  # Import vorhanden (derzeit nicht für Textgenerierung genutzt)
 
@@ -76,20 +77,13 @@ elif calendar_status == "parse_error":
 
 # ----- Button: Nachricht generieren -----
 if st.button("Nachricht generieren"):
-
-    # API-Key-Check, wenn OpenAI gewählt
-    if use_openai:
-        if not config.OPENAI_API_KEY:
-            st.error("OpenAI API-Key ist nicht gesetzt. Generierung nicht möglich.")
-            st.stop()
-
     if not ad_url:
         st.error("Bitte geben Sie eine URL zur Kleinanzeige ein.")
         st.stop()
 
     # Kleinanzeigen-Daten abrufen & parsen
     try:
-        ad_data = parser.parse_ad(ad_url)
+        ad_data = extract_data_from_url(ad_url)
     except Exception as e:
         st.error(f"Fehler beim Abrufen der Kleinanzeige: {e}")
         st.stop()
