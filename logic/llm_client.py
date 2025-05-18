@@ -1,6 +1,7 @@
 import openai
 import config
 import os
+import ollama
 
 openai.api_key = st.secrets.get("openai_api_key", None) or os.getenv("openai_api_key")
 if not openai.api_key:
@@ -29,20 +30,19 @@ def ask_openai(prompt: str, model: str = None) -> str:
         raise
     return response.choices[0].message.content.strip()
 
-def ask_ollama(prompt: str, model: str = None) -> str:
+def ask_ollama(prompt: str, model: str = "llama3.2") -> str:
     """
-    Fragt das lokale LLM (Ollama) an (OpenAI-kompatibles API-Format).
-    Setzt die OpenAI-API Base URL auf http://127.0.0.1:11434/v1.
+    Sendet eine Anfrage an das lokal laufende Ollama-Modell und gibt die Antwort zurück.
+
+    :param prompt: Die Eingabeaufforderung für das Modell.
+    :param model: Der Name des zu verwendenden Modells.
+    :return: Die Antwort des Modells als Zeichenkette.
     """
-    openai.api_base = "http://127.0.0.1:11434/v1"
-   # openai.api_key = "none"  # Dummy-Key, da Ollama keine Auth verwendet
-    chosen_model = model or config.OLLAMA_MODEL
     try:
-        response = openai.ChatCompletion.create(
-            model=chosen_model,
+        response = ollama.chat(
+            model=model,
             messages=[{"role": "user", "content": prompt}]
         )
+        return response['message']['content']
     except Exception as e:
-        # Fehler bei lokaler LLM-Anfrage weitergeben
-        raise
-    return response.choices[0].message.content.strip()
+        raise RuntimeError(f"Fehler bei der Anfrage an Ollama: {e}")
