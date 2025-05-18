@@ -2,7 +2,7 @@
 Globale Konfiguration (Modelle, API-Keys, Zeitzone).
 Lädt .env lokal UND Streamlit-Secrets in der Cloud.
 """
-
+import streamlit as st
 import os
 from pathlib import Path
 from dotenv import load_dotenv
