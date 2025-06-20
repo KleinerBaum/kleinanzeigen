@@ -6,6 +6,8 @@ import streamlit as st
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import openai
+
 
 openai.api_key = st.secrets.get("openai_api_key", None) or os.getenv("openai_api_key")
 if not openai.api_key:
