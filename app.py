@@ -1,4 +1,5 @@
 import streamlit as st
+import openai
 import config  # enthält openai_api_key, OPENAI_MODEL, OLLAMA_MODEL, TIMEZONE
 from logic.calendar import load_calendar_with_status, get_available_appointments
 from logic.calendar import calendar_logic
