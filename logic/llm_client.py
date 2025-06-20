@@ -2,6 +2,7 @@ import openai
 import config
 import os
 import ollama
+import streamlit as st
 
 openai.api_key = st.secrets.get("openai_api_key", None) or os.getenv("openai_api_key")
 if not openai.api_key:
